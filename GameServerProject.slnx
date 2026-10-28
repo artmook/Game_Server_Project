@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Server/Server.csproj" />
   <Project Path="TestClient/TestClient.csproj" />
+  <Project Path="Tests/NetworkTests.csproj" />
 </Solution>

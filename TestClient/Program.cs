@@ -1,105 +1,114 @@
-﻿/*
+/*
 [ 코드 설명 ]
 
 TCP 테스트 클라이언트
 
-1. 같은 컴퓨터에서 실행 중인 127.0.0.1:7777 서버에 접속한다.
-2. 콘솔에서 문자열을 입력받는다.
-3. 입력한 문자열을 서버에 전송한다.
-4. 서버가 보내준 응답을 콘솔에 출력한다.
-5. EXIT 입력 시 클라이언트를 종료한다.
-
-Unity와 서버를 연결하기 전에
-TCP Socket 통신이 정상적으로 동작하는지 확인하기 위한 프로그램이다.
+1. 127.0.0.1:7777 서버에 접속하고 UTF-8 문자열을 전송한다.
+2. 콘솔 입력과 서버 메시지 수신을 독립적으로 진행한다.
+3. HELLO 응답과 BROADCAST 메시지를 Unity 없이 확인한다.
+4. EXIT, Ctrl+C, 서버 연결 종료 시 소켓과 작업을 정리한다.
 */
 
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using GameServerProject.Networking;
 
-Socket clientSocket = new Socket(
-    AddressFamily.InterNetwork,
-    SocketType.Stream,
-    ProtocolType.Tcp
-);
+Console.InputEncoding = Encoding.UTF8;
+Console.OutputEncoding = Encoding.UTF8;
+using var stopping = new CancellationTokenSource();
+using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-IPEndPoint serverEndPoint = new IPEndPoint(
-    IPAddress.Parse("127.0.0.1"),
-    7777
-);
-
-Console.WriteLine("==============================");
-Console.WriteLine("       Test Client");
-Console.WriteLine("==============================");
-Console.WriteLine();
-
-Console.WriteLine("서버에 접속 중...");
-
-await clientSocket.ConnectAsync(
-    serverEndPoint
-);
-
-Console.WriteLine("서버 접속 성공!");
-Console.WriteLine();
-Console.WriteLine("메시지를 입력하세요.");
-Console.WriteLine("종료하려면 EXIT 입력");
-Console.WriteLine();
-
-byte[] buffer = new byte[4096];
-
-while (true)
+ConsoleCancelEventHandler cancelHandler = (_, e) =>
 {
-    Console.Write("> ");
-
-    string? message = Console.ReadLine();
-
-    if (string.IsNullOrWhiteSpace(message))
-    {
-        continue;
-    }
-
-    if (message.ToUpper() == "EXIT")
-    {
-        break;
-    }
-
-    byte[] sendData =
-        Encoding.UTF8.GetBytes(message);
-
-    await clientSocket.SendAsync(
-        sendData,
-        SocketFlags.None
-    );
-
-    int receivedBytes =
-        await clientSocket.ReceiveAsync(
-            buffer,
-            SocketFlags.None
-        );
-
-    string response =
-        Encoding.UTF8.GetString(
-            buffer,
-            0,
-            receivedBytes
-        );
-
-    Console.WriteLine(
-        $"Server : {response}"
-    );
-}
+    e.Cancel = true;
+    stopping.Cancel();
+};
+Console.CancelKeyPress += cancelHandler;
 
 try
 {
-    clientSocket.Shutdown(
-        SocketShutdown.Both
-    );
+    Console.WriteLine("127.0.0.1:7777 서버에 접속 중...");
+    using var connecting = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token);
+    connecting.CancelAfter(TimeSpan.FromSeconds(10));
+    await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 7777), connecting.Token);
+    using var connection = new TcpConnection(socket);
+    Console.WriteLine("접속 성공. HELLO / BROADCAST|안녕하세요 / EXIT (입력 본문 최대 4096바이트)");
+
+    Task receiving = ReceiveMessagesAsync(connection, stopping.Token);
+    try
+    {
+        while (!stopping.IsCancellationRequested)
+        {
+            // Windows 콘솔의 ReadLine은 즉시 취소되지 않을 수 있다. 별도 스레드에서
+            // 입력을 기다리고, 서버 연결이 끝나면 입력 중이어도 프로그램을 종료한다.
+            Task<string?> input = Task.Run(Console.ReadLine);
+            Task completed = await Task.WhenAny(input, receiving).WaitAsync(stopping.Token);
+            if (completed == receiving)
+            {
+                break;
+            }
+
+            string? message = await input;
+            if (message is null || message.Equals("EXIT", StringComparison.OrdinalIgnoreCase))
+            {
+                break; // 입력 스트림 끝도 정상 종료로 처리한다.
+            }
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                continue;
+            }
+            if (Encoding.UTF8.GetByteCount(message) > TcpConnection.MaxClientMessageBytes)
+            {
+                Console.WriteLine("[INPUT ERROR] 입력 본문은 최대 4096바이트입니다.");
+                continue;
+            }
+
+            await connection.SendAsync(message, stopping.Token);
+        }
+    }
+    finally
+    {
+        stopping.Cancel();
+        connection.Dispose();
+        // 수신 작업 예외도 반드시 관찰하여 통신 오류를 놓치지 않는다.
+        await receiving;
+    }
 }
-catch
+catch (OperationCanceledException) when (stopping.IsCancellationRequested)
 {
+    // 사용자가 Ctrl+C 또는 EXIT로 종료했다.
+}
+catch (Exception e)
+{
+    Console.Error.WriteLine($"[CLIENT ERROR] {e.GetType().Name} : {e.Message}");
+    Environment.ExitCode = 1;
+}
+finally
+{
+    Console.CancelKeyPress -= cancelHandler;
+    Console.WriteLine("클라이언트 종료");
 }
 
-clientSocket.Close();
-
-Console.WriteLine();
-Console.WriteLine("클라이언트 종료");
+// 송신 여부와 상관없이 서버가 보내는 브로드캐스트를 계속 받는다.
+static async Task ReceiveMessagesAsync(TcpConnection connection, CancellationToken cancellationToken)
+{
+    try
+    {
+        while (true)
+        {
+            string? message = await connection.ReceiveAsync(cancellationToken);
+            if (message is null)
+            {
+                Console.WriteLine("서버가 연결을 종료했습니다.");
+                return;
+            }
+            Console.WriteLine($"Server : {message}");
+        }
+    }
+    catch (Exception e) when (cancellationToken.IsCancellationRequested &&
+                             e is OperationCanceledException or ObjectDisposedException or SocketException)
+    {
+        // 로컬 종료로 수신을 취소하거나 소켓을 닫은 경우에만 정상 정리로 처리한다.
+    }
+}

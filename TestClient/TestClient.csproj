@@ -7,4 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="../Shared/TcpConnection.cs" Link="Networking/TcpConnection.cs" />
+  </ItemGroup>
+
 </Project>
