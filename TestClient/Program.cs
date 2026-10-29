@@ -35,6 +35,7 @@ try
     using var connection = new TcpConnection(socket);
     Console.WriteLine("접속 성공. HELLO / BROADCAST|안녕하세요 / EXIT (입력 본문 최대 4096바이트)");
 
+    Console.WriteLine("방 명령: ROOM|CREATE / ROOM|JOIN|방ID / ROOM|LEAVE / ROOM|MEMBERS / ROOM|SAY|내용");
     Task receiving = ReceiveMessagesAsync(connection, stopping.Token);
     try
     {

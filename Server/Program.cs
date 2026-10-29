@@ -24,6 +24,9 @@ Console.CancelKeyPress += cancelHandler;
 try
 {
     var server = new GameServer();
+    var rooms = new RoomManager(server);
+    server.MessageHandler = rooms.HandleMessageAsync;
+    server.ClientDisconnected += rooms.HandleClientDisconnected;
     await server.StartAsync(7777, stopping.Token);
 }
 catch (Exception e)

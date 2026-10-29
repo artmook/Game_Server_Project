@@ -16,7 +16,7 @@ using System.Net.Sockets;
 using System.Text;
 using GameServerProject.Networking;
 
-internal static class NetworkTests
+internal static partial class NetworkTests
 {
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(8);
 
@@ -208,6 +208,7 @@ internal static class NetworkTests
             }
             Pass("미완성 수신 중 서버 취소 종료 / 전체 작업·목록 정리 / 포트 재바인딩");
 
+            await RunRoomTestsAsync(Pass);
             report.WriteLine($"ALL PASS ({passed}) / 서버 로그: {logPath}");
             return 0;
         }
