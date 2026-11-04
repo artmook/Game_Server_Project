@@ -447,7 +447,7 @@ MonoBehaviour:
   spawnScatterRadius: 5
   aiCount: 30
   maxPlayers: 4
-  startOnPlay: 1
+  startOnPlay: 0
 --- !u!114 &179839930
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -685,6 +685,59 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 295576987}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &312966235
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 312966236}
+  - component: {fileID: 312966237}
+  m_Layer: 0
+  m_Name: NetworkGameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &312966236
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 312966235}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.67453, y: 0, z: 1.20455}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1484303421}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &312966237
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 312966235}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 456ccdc96e3e8254680d0fcc71fef8ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameServer.NetworkGameManager
+  host: 127.0.0.1
+  port: 7777
+  connectOnStart: 1
+  gameManager: {fileID: 179839929}
+  localPlayer: {fileID: 1139473565}
+  remotePlayerPrefab: {fileID: 925373728590068159, guid: a0e56f21eb76ab94c8a6d43faf0236e9, type: 3}
+  remoteRoot: {fileID: 0}
+  moveSendInterval: 0.1
+  showDebugLobby: 1
 --- !u!1001 &326910832
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2304,6 +2357,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68cd1e334fe0342468c0a6f85eb7a9c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.Health
+  serverAuthoritative: 0
 --- !u!114 &1139473563
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2362,6 +2416,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68cd1e334fe0342468c0a6f85eb7a9c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.Health
+  serverAuthoritative: 0
 --- !u!114 &1139473567
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2838,6 +2893,7 @@ Transform:
   - {fileID: 179839927}
   - {fileID: 1811304391}
   - {fileID: 1687954062}
+  - {fileID: 312966236}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1646657073

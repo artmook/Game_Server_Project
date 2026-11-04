@@ -17,69 +17,14 @@ namespace GameServer
         private static readonly int AttackHash = Animator.StringToHash("Attack");
         private static readonly int DieHash = Animator.StringToHash("Die");
 
-        private CharacterMove characterMove;
-        private CharacterAction characterAction;
         private CharacterCombat characterCombat;
-        private ICommandSource inputSource;
 
+        // Update는 제거했다. 이동·공격·행동은 Character.Update가 한 번만 처리한다.
+        // (기존에는 두 곳에서 모두 처리해 한 프레임에 두 번 움직이고 명령을 두 번 읽었다.)
         private void Awake()
         {
             if (animator == null) animator = GetComponentInChildren<Animator>();
-
-            characterMove = GetComponent<CharacterMove>();
-            characterAction = GetComponent<CharacterAction>();
             characterCombat = GetComponent<CharacterCombat>();
-            inputSource = GetComponent<ICommandSource>();
-        }
-
-        private void Update()
-        {
-            float deltaTime = Time.deltaTime;
-
-            CharacterCommand command = inputSource != null ? inputSource.ReadCommand() : new CharacterCommand();
-
-            if (command.ActionIndex > 0)
-            {
-                characterAction.TryPerform(command.ActionIndex, this);
-            }
-
-            characterAction.Tick(deltaTime);
-
-            if (characterCombat != null)
-            {
-                characterCombat.Tick(deltaTime);
-            }
-
-            Vector3 moveInput = command.MoveDirection;
-            bool runInput = command.Run;
-            bool jumpInput = command.Jump;
-
-            if (characterAction.LocksMovement)
-            {
-                moveInput = Vector3.zero;
-                runInput = false;
-                jumpInput = false;
-            }
-
-            bool jumped = characterMove.Move(moveInput, runInput, jumpInput, true, deltaTime);
-            if (jumped)
-            {
-                PlayJump();
-            }
-
-            if (command.Attack && !characterAction.IsBusy)
-            {
-                if (characterCombat != null)
-                {
-                    characterCombat.TryAttack(command, this);
-                }
-                else
-                {
-                    PlayAttack();
-                }
-            }
-
-            SetLocomotion(characterMove.PlanarSpeed, characterMove.IsGrounded, deltaTime);
         }
 
         public void SetLocomotion(float speed, bool grounded, float deltaTime)
@@ -115,4 +60,4 @@ namespace GameServer
             }
         }
     }
-}
+}

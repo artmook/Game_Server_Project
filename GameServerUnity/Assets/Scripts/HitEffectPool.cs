@@ -23,6 +23,9 @@ namespace GameServer
 
         public void Play(Vector3 position, Vector3 normal)
         {
+            // 이펙트 프리팹이 비어 있으면 건너뛴다. 예외가 나면 CharacterCombat.TargetHit(서버 공격 보고)까지 끊긴다.
+            if (prefab == null) return;
+
             PooledEffect effect = pool.Get();
             Quaternion rotation = normal.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(normal) : Quaternion.identity;
             effect.transform.SetPositionAndRotation(position, rotation);

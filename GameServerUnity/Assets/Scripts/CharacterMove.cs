@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 namespace GameServer
 {
@@ -23,6 +24,7 @@ namespace GameServer
         public float RunSpeed => runSpeed;
         public bool IsGrounded => controller.isGrounded;
         public float PlanarSpeed { get; private set; }
+        public event Action Jumped; // 네트워크 JUMP 송신용
 
         private void Awake()
         {
@@ -74,6 +76,7 @@ namespace GameServer
                 {
                     verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
                     jumped = true;
+                    Jumped?.Invoke();
                 }
             }
 
@@ -149,4 +152,4 @@ namespace GameServer
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * deltaTime);
         }
     }
-}
+}

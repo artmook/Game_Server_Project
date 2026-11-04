@@ -22,6 +22,9 @@ namespace GameServer
 
         private readonly List<Character> activeAI = new();
         private readonly List<Character> players = new();
+        // 네트워크 게임: 시드로 만든 플레이어 시작 위치. 모든 클라이언트에서 같다.
+        private readonly List<Vector3> playerSpawnPositions = new();
+        private const float PlayerSpawnSpacing = 5f;
 
         public bool IsPlaying { get; private set; }
         public int MaxPlayers => maxPlayers;
@@ -36,21 +39,84 @@ namespace GameServer
             if (startOnPlay) StartGame();
         }
 
-        public void StartGame()
-        {
-            if (IsPlaying) return;
-            if (!NavMeshRandom.Build()) return;     // NavMesh 데이터 캐싱
+        public void StartGame() => StartGameInternal(null);
 
+        // 서버 STARTED의 시드로 시작한다. 진행 중이던 게임은 먼저 정리한다.
+        public bool StartNetworkGame(int seed)
+        {
+            if (IsPlaying) End_Game();
+            return StartGameInternal(seed);
+        }
+
+        private bool StartGameInternal(int? seed)
+        {
+            if (IsPlaying) return false;
+            if (!NavMeshRandom.Build()) return false;     // NavMesh 데이터 캐싱
+
+            // 풀 생성(Awake의 난수 사용)은 시드 적용 전에 끝낸다. PC마다 풀 상태가 달라도 이후 난수 순서가 같아진다.
             aiPool.Prewarm(aiCount);
-            for (int i = 0; i < aiCount; i++) Spawn_AI();
+            playerSpawnPositions.Clear();
+            if (seed.HasValue)
+            {
+                UnityEngine.Random.InitState(seed.Value);
+                BuildPlayerSpawnPositions();
+            }
+            for (int i = 0; i < aiCount; i++) Spawn_AI(seed.HasValue);
 
             IsPlaying = true;
             GameStarted?.Invoke();
+            return true;
+        }
+
+        // 서버가 준 스폰 번호의 시작 위치. spawnPoints가 있으면 그 위치, 없으면 시드로 만든 위치이다.
+        public bool TryGetPlayerSpawn(int index, out Vector3 position, out Quaternion rotation)
+        {
+            rotation = Quaternion.identity;
+            if (playerSpawnPositions.Count == 0)
+            {
+                position = localPlayer != null ? localPlayer.transform.position : Vector3.zero;
+                return false;
+            }
+            int i = ((index % playerSpawnPositions.Count) + playerSpawnPositions.Count) % playerSpawnPositions.Count;
+            position = playerSpawnPositions[i];
+            if (HasSpawnPoints() && spawnPoints[i % spawnPoints.Length] != null)
+                rotation = spawnPoints[i % spawnPoints.Length].rotation;
+            return true;
+        }
+
+        private bool HasSpawnPoints() => spawnPoints != null && spawnPoints.Length > 0;
+
+        private void BuildPlayerSpawnPositions()
+        {
+            for (int i = 0; i < maxPlayers; i++)
+            {
+                if (HasSpawnPoints() && spawnPoints[i % spawnPoints.Length] != null)
+                {
+                    playerSpawnPositions.Add(spawnPoints[i % spawnPoints.Length].position);
+                    continue;
+                }
+
+                Vector3 chosen = Vector3.zero;
+                for (int attempt = 0; attempt < 30; attempt++)
+                {
+                    if (!NavMeshRandom.TryGetRandomPoint(out Vector3 candidate)) break;
+                    chosen = candidate;
+                    bool tooClose = false;
+                    foreach (Vector3 other in playerSpawnPositions)
+                    {
+                        if (Vector3.Distance(candidate, other) < PlayerSpawnSpacing) { tooClose = true; break; }
+                    }
+                    if (!tooClose) break;
+                }
+                playerSpawnPositions.Add(chosen);
+            }
         }
 
         public void End_Game()
         {
-            foreach (Character ai in activeAI) aiPool.Despawn(ai);
+            // 죽은 AI는 NavAIInputSource가 이미 풀에 반납했을 수 있다. 두 번 반납하면 ObjectPool이 예외를 낸다.
+            foreach (Character ai in activeAI)
+                if (ai != null && ai.gameObject.activeSelf) aiPool.Despawn(ai);
             activeAI.Clear();
             IsPlaying = false;
         }
@@ -70,7 +136,8 @@ namespace GameServer
             RefreshRemainingPlayers();
         }
 
-        private void Spawn_AI()
+        // networked: 로컬 플레이어 위치 대신 모든 플레이어 시작 위치를 피한다(PC마다 같은 결과가 나오게).
+        private void Spawn_AI(bool networked)
         {
             Vector3 position = Vector3.zero;
             bool validPosition = false;
@@ -112,7 +179,14 @@ namespace GameServer
                     }
 
                     // 플레이어 사이 거리 확인
-                    if (!tooClose && localPlayer != null && Vector3.Distance(candidate, localPlayer.transform.position) < 3f)
+                    if (!tooClose && networked)
+                    {
+                        foreach (Vector3 spawn in playerSpawnPositions)
+                        {
+                            if (Vector3.Distance(candidate, spawn) < 3f) { tooClose = true; break; }
+                        }
+                    }
+                    else if (!tooClose && localPlayer != null && Vector3.Distance(candidate, localPlayer.transform.position) < 3f)
                     {
                         tooClose = true;
                     }
@@ -155,4 +229,4 @@ namespace GameServer
             foreach (Character p in players) if (p != null) p.Died -= Handle_Player_Died;
         }
     }
-}
+}
