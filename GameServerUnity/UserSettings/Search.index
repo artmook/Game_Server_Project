@@ -1,9 +1,17 @@
 {
     "name": "Assets",
-    "roots": ["Assets","Packages"],
+    "type": "asset",
+    "roots": [
+        "Assets",
+        "Packages"
+    ],
     "includes": [],
-    "excludes": ["Assets/Temp/", "Assets/External/"],
+    "excludes": [
+        "Assets/Temp/",
+        "Assets/External/"
+    ],
     "options": {
+        "disabled": false,
         "types": true,
         "properties": true,
         "extended": false,
