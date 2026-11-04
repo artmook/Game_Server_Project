@@ -6,6 +6,7 @@
 1. 7777 포트에서 GameServer를 실행한다.
 2. Ctrl+C를 종료 요청으로 바꾸어 연결과 비동기 작업을 정리한다.
 3. 서버 시작 및 실행 오류를 출력하고 실패 종료 코드를 반환한다.
+4. RoomManager(방 B + 게임 C)를 처리기로 연결한다.
 */
 
 using System.Text;
@@ -28,6 +29,8 @@ try
     server.MessageHandler = rooms.HandleMessageAsync;
     server.ClientDisconnected += rooms.HandleClientDisconnected;
     await server.StartAsync(7777, stopping.Token);
+    // 서버 종료 중 접속 종료로 생긴 게임 탈락 통지(OUT/END) 송신까지 끝낸다.
+    await rooms.WaitForNoticesAsync();
 }
 catch (Exception e)
 {
