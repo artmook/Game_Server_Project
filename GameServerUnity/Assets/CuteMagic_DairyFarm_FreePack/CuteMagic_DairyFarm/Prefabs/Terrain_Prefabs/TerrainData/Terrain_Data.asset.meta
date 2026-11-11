@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4165538aa32b2094b8ea86053aba385f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 15600000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386488
+  packageName: CuteMagic - Dairy Farm - Free Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/CuteMagic_DairyFarm_FreePack/CuteMagic_DairyFarm/Prefabs/Terrain_Prefabs/TerrainData/Terrain_Data.asset
+  uploadId: 933214

@@ -798,6 +798,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68cd1e334fe0342468c0a6f85eb7a9c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.Health
+  serverAuthoritative: 0
 --- !u!114 &925373728590068159
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -856,6 +857,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68cd1e334fe0342468c0a6f85eb7a9c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.Health
+  serverAuthoritative: 0
 --- !u!114 &5989030183625229520
 MonoBehaviour:
   m_ObjectHideFlags: 0

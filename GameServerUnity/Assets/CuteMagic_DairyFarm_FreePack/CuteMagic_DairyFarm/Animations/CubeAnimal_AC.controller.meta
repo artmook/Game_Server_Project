@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c668e624bd1701943a4e775a4a4a881c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386488
+  packageName: CuteMagic - Dairy Farm - Free Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/CuteMagic_DairyFarm_FreePack/CuteMagic_DairyFarm/Animations/CubeAnimal_AC.controller
+  uploadId: 933214

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: fc9d9eea6c4669b48824ce5e189112d2
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 625f186215c104763be7675aa2d941aa, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386488
+  packageName: CuteMagic - Dairy Farm - Free Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/CuteMagic_DairyFarm_FreePack/CuteMagic_DairyFarm/ShaderTexture/Materials/New
+    Shader Graph.shadergraph
+  uploadId: 933214
