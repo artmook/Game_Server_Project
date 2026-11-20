@@ -5,16 +5,15 @@ using System.Collections;
 
 namespace GameServer
 {
-    [RequireComponent(typeof(NavMeshAgent), typeof(CharacterAction), typeof(CharacterMove))]
+    [RequireComponent(typeof(NavMeshAgent), typeof(CharacterMove))]
     public class NavAIInputSource : MonoBehaviour, ICommandSource
     {
         [Header("이동 설정")]
         [SerializeField] private float wanderRadius = 15f;
         [SerializeField] private float maxMoveTime = 15f;
 
-        [Header("행동 확률 (공격/액션은 이동 중에 확률적으로 실행)")]
+        [Header("행동 확률 (공격은 이동 중에 확률적으로 실행)")]
         [SerializeField, Range(0f, 1f)] private float attackChance = 0.05f;
-        [SerializeField, Range(0f, 1f)] private float actionChance = 0.15f;
         [SerializeField, Range(0f, 1f)] private float runChance = 0.3f;
         [SerializeField] private float jumpChancePerSecond = 0.1f;
 
@@ -28,27 +27,19 @@ namespace GameServer
         private Vector3 lastPos;
 
         private NavMeshAgent agent;
-        private CharacterAction actions;
         private CharacterMove motor;
         private CharacterHealth health;
 
         private float timer;
         private bool running;
-        private int pendingAction;
         private bool pendingAttack;
         private bool warnedOffMesh;
 
         private void Awake()
         {
             agent = GetComponent<NavMeshAgent>();
-            actions = GetComponent<CharacterAction>();
             motor = GetComponent<CharacterMove>();
             health = GetComponent<CharacterHealth>();
-
-            if (actions == null)
-            {
-                Debug.LogError($"{name}: CharacterAction 컴포넌트가 없습니다!", this);
-            }
 
             if (agent != null)
             {
@@ -73,7 +64,6 @@ namespace GameServer
         {
             StopAllCoroutines();
 
-            pendingAction = 0;
             pendingAttack = false;
             warnedOffMesh = false;
 
@@ -168,13 +158,6 @@ namespace GameServer
                 command.Jump = !blocked && Random.value < jumpChancePerSecond * dt;
             }
 
-            bool locked = actions != null && actions.LocksMovement;
-            if (locked)
-            {
-                command.MoveDirection = Vector3.zero;
-                command.Jump = false;
-            }
-
             Vector3 delta = transform.position - lastPos;
             delta.y = 0f;
             lastPos = transform.position;
@@ -191,9 +174,8 @@ namespace GameServer
             }
             else stuckTimer = 0f;
 
-            ProcessRandomActions();
+            ProcessRandomAttack();
 
-            if (pendingAction > 0) { command.ActionIndex = pendingAction; pendingAction = 0; }
             if (pendingAttack) { command.Attack = true; pendingAttack = false; }
 
             return command;
@@ -240,25 +222,16 @@ namespace GameServer
             timer = maxMoveTime;
         }
 
-        private void ProcessRandomActions()
+        private void ProcessRandomAttack()
         {
-            if (pendingAttack || pendingAction > 0) return;
+            if (pendingAttack) return;
 
-            float dt = Time.deltaTime;
-            if (Random.value < attackChance * dt)
-            {
+            if (Random.value < attackChance * Time.deltaTime)
                 pendingAttack = true;
-            }
-            else if (Random.value < actionChance * dt)
-            {
-                int index = actions.GetRandomEnabledIndex();
-                if (index > 0) pendingAction = index;
-            }
         }
 
         private void HandleDied(HitInfo _)
         {
-            pendingAction = 0;
             pendingAttack = false;
 
             if (agent != null && agent.enabled)

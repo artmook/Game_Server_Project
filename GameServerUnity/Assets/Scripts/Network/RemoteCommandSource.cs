@@ -3,10 +3,10 @@
 
 RemoteCommandSource
 
-1. 다른 플레이어 캐릭터를 서버에서 받은 위치·행동으로 움직이는 ICommandSource이다.
+1. 다른 플레이어 캐릭터를 서버에서 받은 위치·점프·공격으로 움직이는 ICommandSource이다.
 2. 보고된 위치로 걸어가거나 뛰어가게 해서 기존 이동·애니메이션 코드를 그대로 쓴다.
 3. 너무 멀어지면 순간이동으로 맞추고, 멈춰 있을 때는 보고된 방향을 바라본다.
-4. 행동·점프·공격은 한 번만 실행되도록 프레임 단위로 소비한다.
+4. 점프·공격은 한 번만 실행되도록 프레임 단위로 소비한다.
 */
 
 using UnityEngine;
@@ -26,7 +26,6 @@ namespace GameServer
         private float reportedSpeed;
         private bool hasTarget;
 
-        private int pendingAction;
         private bool pendingJump;
         private bool pendingAttack;
         private int commandFrame = -1;
@@ -51,7 +50,6 @@ namespace GameServer
             hasTarget = true;
         }
 
-        public void QueueAction(int index) => pendingAction = index;
         public void QueueJump() => pendingJump = true;
         public void QueueAttack() => pendingAttack = true;
 
@@ -78,7 +76,6 @@ namespace GameServer
                 }
             }
 
-            if (pendingAction > 0) { command.ActionIndex = pendingAction; pendingAction = 0; }
             if (pendingJump) { command.Jump = true; pendingJump = false; }
             if (pendingAttack)
             {
@@ -94,7 +91,6 @@ namespace GameServer
         public void ResetSource()
         {
             hasTarget = false;
-            pendingAction = 0;
             pendingJump = false;
             pendingAttack = false;
             commandFrame = -1;

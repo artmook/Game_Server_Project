@@ -7,8 +7,6 @@ namespace GameServer
     {
         [SerializeField] private Transform cameraTransform;
 
-        private static readonly Key[] ActionKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4 };
-
         private void Awake()
         {
             if (cameraTransform == null && Camera.main != null)
@@ -38,15 +36,6 @@ namespace GameServer
 
             command.Run = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
             command.Jump = keyboard.spaceKey.wasPressedThisFrame;
-
-            for (int i = 0; i < ActionKeys.Length; i++)
-            {
-                if (keyboard[ActionKeys[i]].wasPressedThisFrame)
-                {
-                    command.ActionIndex = i + 1;
-                    break;
-                }
-            }
 
             if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
                 command.Attack = mouse.leftButton.wasPressedThisFrame;

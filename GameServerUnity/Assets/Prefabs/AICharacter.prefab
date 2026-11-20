@@ -691,7 +691,6 @@ GameObject:
   - component: {fileID: 8990308742893349297}
   - component: {fileID: 8173141070525825043}
   - component: {fileID: 8937559921717828596}
-  - component: {fileID: 5989030183625229520}
   - component: {fileID: 4330238015895238916}
   - component: {fileID: 6020784909632124124}
   m_Layer: 6
@@ -858,39 +857,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.Health
   serverAuthoritative: 0
---- !u!114 &5989030183625229520
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5589162496778080620}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 01c89400a9503c240a295b1703706624, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GameServer.CharacterAction
-  slots:
-  - displayName: "\uD589\uB3D91"
-    animatorTrigger: Action1
-    enabled: 1
-    duration: 2
-    lockMovement: 1
-  - displayName: "\uD589\uB3D92"
-    animatorTrigger: Action2
-    enabled: 0
-    duration: 2
-    lockMovement: 1
-  - displayName: "\uD589\uB3D93"
-    animatorTrigger: Action3
-    enabled: 0
-    duration: 2
-    lockMovement: 1
-  - displayName: "\uD589\uB3D94"
-    animatorTrigger: Action4
-    enabled: 0
-    duration: 2
-    lockMovement: 1
 --- !u!114 &4330238015895238916
 MonoBehaviour:
   m_ObjectHideFlags: 0

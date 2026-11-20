@@ -12,6 +12,8 @@ namespace GameServer
         public bool IsAlive { get; private set; } = true;
         public bool ServerAuthoritative { get => serverAuthoritative; set => serverAuthoritative = value; }
         public event Action<HitInfo> Died;
+        // 어떤 캐릭터든 죽으면 알린다(죽은 캐릭터, 공격 정보). 처치 알림 UI가 "누가 누구를"을 알기 위해 쓴다.
+        public static event Action<CharacterHealth, HitInfo> AnyDied;
 
         public void TakeHit(in HitInfo hit)
         {
@@ -39,6 +41,7 @@ namespace GameServer
             }
 
             Died?.Invoke(hit);
+            AnyDied?.Invoke(this, hit);
         }
 
         public void ResetHealth() => IsAlive = true;

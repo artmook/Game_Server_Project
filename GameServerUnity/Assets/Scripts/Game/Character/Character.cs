@@ -9,14 +9,12 @@ namespace GameServer
     {
         private CharacterMove motor;
         private CharacterAnimator characterAnimator;
-        private CharacterAction actions;
         private CharacterCombat combat;
         private CharacterHealth health;
         private ICommandSource commandSource;
 
         public CharacterHealth Health => health;
         public CharacterCombat Combat => combat;
-        public CharacterAction Actions => actions;
         public bool IsAlive => health.IsAlive;
 
         public event Action<Character> Died;
@@ -25,7 +23,6 @@ namespace GameServer
         {
             motor = GetComponent<CharacterMove>();
             characterAnimator = GetComponent<CharacterAnimator>();
-            actions = GetComponent<CharacterAction>();
             combat = GetComponent<CharacterCombat>();
             health = GetComponent<CharacterHealth>();
             commandSource = GetComponent<ICommandSource>();
@@ -40,7 +37,6 @@ namespace GameServer
         {
             float dt = Time.deltaTime;
             combat.Tick(dt);
-            actions.Tick(dt);
 
             if (!health.IsAlive)
             {
@@ -48,22 +44,19 @@ namespace GameServer
                 return;
             }
 
-            CharacterCommand command = commandSource != null ? commandSource.ReadCommand() : default;
+            // GameFlow.ControlsLocked: start intro (mission roulette, countdown) - no input until Start!
+            CharacterCommand command = commandSource != null && !GameFlow.ControlsLocked
+                ? commandSource.ReadCommand() : default;
 
-            if (command.ActionIndex > 0)
-                actions.TryPerform(command.ActionIndex, characterAnimator);
-
-            if (command.Attack && !actions.IsBusy &&
+            if (command.Attack &&
                 combat.TryAttack(command, characterAnimator) && command.HasAim)
             {
                 motor.FaceDirection(command.AimRay.direction);
             }
 
-            bool locked = actions.LocksMovement;
-            Vector3 move = locked ? Vector3.zero : command.MoveDirection;
-
             bool useCamera = commandSource is PlayerInputSource;
-            bool jumped = motor.Move(move, command.Run, command.Jump && !locked, useCamera, dt);
+            bool jumped = motor.Move(command.MoveDirection, command.Run, command.Jump, useCamera, dt);
+
 
             if (jumped) characterAnimator.PlayJump();
             characterAnimator.SetLocomotion(motor.PlanarSpeed, motor.IsGrounded, dt);
@@ -71,7 +64,6 @@ namespace GameServer
 
         private void HandleDied(HitInfo hit)
         {
-            actions.Cancel();
             characterAnimator.PlayDie();
             Died?.Invoke(this);
         }
@@ -81,7 +73,6 @@ namespace GameServer
         {
             motor.Teleport(position, rotation);
             health.ResetHealth();
-            actions.Cancel();
             combat.ResetCooldown();
             characterAnimator.ResetState();
             commandSource?.ResetSource();

@@ -55,7 +55,6 @@ namespace GameServer
         private CharacterHealth localHealth;
         private CharacterMove localMotor;
         private CharacterCombat localCombat;
-        private CharacterAction localActions;
 
         private float moveTimer;
         private bool attackPending;
@@ -83,7 +82,6 @@ namespace GameServer
             localHealth = localPlayer.GetComponent<CharacterHealth>();
             localMotor = localPlayer.GetComponent<CharacterMove>();
             localCombat = localPlayer.GetComponent<CharacterCombat>();
-            localActions = localPlayer.GetComponent<CharacterAction>();
         }
 
         private void OnEnable()
@@ -91,7 +89,6 @@ namespace GameServer
             localHealth.Died += HandleLocalDied;
             localCombat.AttackPerformed += HandleLocalAttack;
             localCombat.TargetHit += HandleLocalTargetHit;
-            localActions.ActionStarted += HandleLocalAction;
             localMotor.Jumped += HandleLocalJump;
         }
 
@@ -100,7 +97,6 @@ namespace GameServer
             localHealth.Died -= HandleLocalDied;
             localCombat.AttackPerformed -= HandleLocalAttack;
             localCombat.TargetHit -= HandleLocalTargetHit;
-            localActions.ActionStarted -= HandleLocalAction;
             localMotor.Jumped -= HandleLocalJump;
         }
 
@@ -277,10 +273,6 @@ namespace GameServer
                         mover.Source.SetState(new Vector3(ParseFloat(p[4]), ParseFloat(p[5]), ParseFloat(p[6])),
                                               ParseFloat(p[7]), ParseFloat(p[8]));
                     break;
-                case "ACTION":
-                    if (InGame && remotes.TryGetValue(ParseInt(p[3]), out RemotePlayer actor))
-                        actor.Source.QueueAction(ParseInt(p[4]));
-                    break;
                 case "JUMP":
                     if (InGame && remotes.TryGetValue(ParseInt(p[3]), out RemotePlayer jumper))
                         jumper.Source.QueueJump();
@@ -441,11 +433,6 @@ namespace GameServer
             // 원격 플레이어를 맞혔으면 대상 ID를 붙여 서버 판정을 요청한다. AI는 대상 없이 보낸다.
             if (target is CharacterHealth health && remoteIdsByHealth.TryGetValue(health, out int id))
                 attackTarget = id;
-        }
-
-        private void HandleLocalAction(int index)
-        {
-            if (InGame && localHealth.IsAlive) Send($"GAME|ACTION|{index}");
         }
 
         private void HandleLocalJump()

@@ -19,6 +19,8 @@ namespace GameServer
         public float CooldownDuration => cooldown;
         public float CooldownRemaining => cooldownRemaining;
         public bool IsReady => cooldownRemaining <= 0f;
+        // false: attack animation/cooldown only, no hit (MissionIntro turns this off for non-taggers)
+        public bool CanDealDamage { get => canDealDamage; set => canDealDamage = value; }
 
         public event Action AttackPerformed;
         public event Action<IDamageable> TargetHit;

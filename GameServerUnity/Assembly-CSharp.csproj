@@ -67,16 +67,19 @@
     <Compile Include="Assets\Scripts\Game\GameManager.cs" />
     <Compile Include="Assets\Scripts\Game\PlayerInputSource.cs" />
     <Compile Include="Assets\Scripts\Game\CursorController.cs" />
-    <Compile Include="Assets\Scripts\Game\Character\CharacterAction.cs" />
+    <Compile Include="Assets\Scripts\Game\Mission\MissionIntroView.cs" />
     <Compile Include="Assets\Scripts\Game\PooledEffect.cs" />
     <Compile Include="Assets\Scripts\Game\ScreenEffectManager.cs" />
+    <Compile Include="Assets\Scripts\Game\Mission\GameFlow.cs" />
     <Compile Include="Assets\Scripts\Game\Character\CharacterPool.cs" />
+    <Compile Include="Assets\Scripts\Game\Mission\MissionIntro.cs" />
     <Compile Include="Assets\Scripts\Network\RemoteCommandSource.cs" />
     <Compile Include="Assets\Scripts\Game\ICommandSource.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\Scripts\Game\Character\Character.cs" />
     <Compile Include="Assets\Scripts\Network\ServerConnection.cs" />
     <Compile Include="Assets\Scripts\Game\Character\CharacterHealth.cs" />
+    <Compile Include="Assets\Scripts\Game\Mission\MissionTracker.cs" />
     <Compile Include="Assets\Scripts\Game\UIView.cs" />
     <Compile Include="Assets\Scripts\Network\NetworkGameManager.cs" />
     <Compile Include="Assets\Scripts\Game\UIPresent.cs" />
@@ -659,6 +662,10 @@
     </Reference>
     <Reference Include="Unity.VisualScripting.Antlr3.Runtime">
       <HintPath>Library\PackageCache\com.unity.visualscripting@4edfcc09512f\Runtime\VisualScripting.Flow\Dependencies\NCalc\Unity.VisualScripting.Antlr3.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>Library\PackageCache\com.unity.nuget.newtonsoft-json@4dfd81071c64\Runtime\Newtonsoft.Json.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Mono.Cecil">
@@ -1277,6 +1284,10 @@
       <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="MCPForUnity.Runtime">
+      <HintPath>Library\ScriptAssemblies\MCPForUnity.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.RenderPipelines.Core.Runtime">
       <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.Core.Runtime.dll</HintPath>
       <Private>False</Private>
@@ -1307,6 +1318,10 @@
     </Reference>
     <Reference Include="Unity.RenderPipelines.GPUDriven.Runtime">
       <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.GPUDriven.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MCPForUnity.Editor">
+      <HintPath>Library\ScriptAssemblies\MCPForUnity.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.Timeline.Editor">

@@ -4,7 +4,6 @@ using UnityEngine;
 namespace GameServer
 {
     [RequireComponent(typeof(CharacterMove))]
-    [RequireComponent(typeof(CharacterAction))]
     [RequireComponent(typeof(CharacterCombat))]
     public class CharacterAnimator : MonoBehaviour
     {
@@ -19,7 +18,7 @@ namespace GameServer
 
         private CharacterCombat characterCombat;
 
-        // Update는 제거했다. 이동·공격·행동은 Character.Update가 한 번만 처리한다.
+        // Update는 제거했다. 이동·점프·공격은 Character.Update가 한 번만 처리한다.
         // (기존에는 두 곳에서 모두 처리해 한 프레임에 두 번 움직이고 명령을 두 번 읽었다.)
         private void Awake()
         {
@@ -45,8 +44,6 @@ namespace GameServer
         }
 
         public void PlayAttack() => animator.SetTrigger(AttackHash);
-
-        public void PlayAction(string AttackHash) => animator.SetTrigger(AttackHash);
         public void PlayDie() => animator.SetTrigger(DieHash);
 
         public void ResetState()
