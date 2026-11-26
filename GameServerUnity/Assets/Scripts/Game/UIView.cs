@@ -130,6 +130,8 @@ namespace GameServer
         private string KillText(string targetName)
         {
             string color = ColorUtility.ToHtmlStringRGB(targetName == "AI" ? new Color(1f, 0.42f, 0.42f) : accent);
+            // AI를 처리하면 술래는 오인 공격 페널티(공격 대기 증가)를 받는다.
+            if (targetName == "AI") return $"<color=#{color}>오인 공격!</color> AI를 처리해서 공격이 늦어집니다.";
             return $"<color=#{color}>{targetName}</color>{ObjectParticle(targetName)} 처리했습니다.";
         }
 

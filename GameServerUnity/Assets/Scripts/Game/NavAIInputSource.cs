@@ -17,6 +17,11 @@ namespace GameServer
         [SerializeField, Range(0f, 1f)] private float runChance = 0.3f;
         [SerializeField] private float jumpChancePerSecond = 0.1f;
 
+        [Header("멈춤 (사람도 멈춰서 미션을 할 수 있게)")]
+        [Tooltip("목적지에 닿거나 이동 시간이 끝났을 때 잠깐 서 있을 확률")]
+        [SerializeField, Range(0f, 1f)] private float idleChance = 0.3f;
+        [SerializeField] private Vector2 idleTime = new Vector2(1f, 4f);
+
         [Header("Smoothing / Stuck")]
         [SerializeField] private float directionSmooth = 1f;   // 방향 전환 부드러움
         [SerializeField] private float stuckTime = 1.0f;       // 못 움직이고 막힌 것으로 판정할 시간
@@ -31,6 +36,7 @@ namespace GameServer
         private CharacterHealth health;
 
         private float timer;
+        private float idleTimer;
         private bool running;
         private bool pendingAttack;
         private bool warnedOffMesh;
@@ -66,6 +72,7 @@ namespace GameServer
 
             pendingAttack = false;
             warnedOffMesh = false;
+            idleTimer = 0f;
 
             if (EnsureAgent())
             {
@@ -119,9 +126,27 @@ namespace GameServer
             float dt = Time.deltaTime;
 
             agent.nextPosition = transform.position;
-            timer -= dt;
 
-            if (HasArrived() || timer <= 0f || agent.pathStatus == NavMeshPathStatus.PathInvalid)
+            // 제자리에 서 있는 중: 시간이 끝나면 새 목적지로 출발한다.
+            if (idleTimer > 0f)
+            {
+                idleTimer -= dt;
+                smoothedDir = Vector3.zero;
+                lastPos = transform.position;
+                if (idleTimer <= 0f) PickNewDestination();
+                return command;
+            }
+
+            timer -= dt;
+            bool legDone = HasArrived() || timer <= 0f;
+            if (legDone && Random.value < idleChance)
+            {
+                idleTimer = Random.Range(idleTime.x, idleTime.y);
+                agent.ResetPath();
+                return command;
+            }
+
+            if (legDone || agent.pathStatus == NavMeshPathStatus.PathInvalid)
             {
                 PickNewDestination();
             }
@@ -251,7 +276,7 @@ namespace GameServer
         {
             yield return new WaitForSeconds(delay);
 
-            CharacterPool pool = FindObjectOfType<CharacterPool>();
+            CharacterPool pool = FindFirstObjectByType<CharacterPool>();
             Character characterComponent = GetComponent<Character>();
 
             if (pool != null && characterComponent != null)

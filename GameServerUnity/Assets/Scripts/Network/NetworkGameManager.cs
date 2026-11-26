@@ -8,6 +8,9 @@ NetworkGameManager (초안)
 3. 내 이동(초당 10회), 행동, 점프, 공격을 서버 규격으로 보낸다.
 4. STARTED의 게임 번호를 기억하고, 다른 번호의 KILL/OUT/END는 버린다.
 5. 내 화면의 AI에게 맞아 죽으면 GAME|DIE로 서버에 알린다.
+6. 닉네임·방장: 서버에 없는 기능이라 방 채팅(ROOM|SAY)으로 "#NICK|방장여부|닉네임"을 주고받는다.
+   새 멤버가 보이면 모두 다시 알려 새로 온 사람도 이름을 받는다. 방장은 방을 만든 사람, 없으면 가장 작은 ID.
+7. 술래: 서버가 정하지 않으므로 STARTED의 시드로 모든 클라이언트가 같은 사람을 뽑는다.
 
 플레이어 생사는 서버가 판정한다. 원격 플레이어는 로컬 피격으로 죽지 않고 서버 KILL로만 죽는다.
 AI는 시드로 같은 위치에 배치하지만 이후 움직임은 PC마다 다르다.
@@ -35,6 +38,8 @@ namespace GameServer
         [Tooltip("원격 플레이어 외형. AICharacter 프리팹을 그대로 넣으면 AI 조종 부품을 빼고 사용한다.")]
         [SerializeField] private Character remotePlayerPrefab;
         [SerializeField] private Transform remoteRoot;
+        [Tooltip("HUD 생존 수·처치 알림. 비워 두면 씬에서 찾는다.")]
+        [SerializeField] private SurvivorCounter survivors;
 
         [Header("Sync")]
         [SerializeField] private float moveSendInterval = 0.1f;
@@ -74,6 +79,25 @@ namespace GameServer
         public event Action<int> GameStarted;        // 게임 번호
         public event Action<int, bool> GameEnded;    // 승자 ID(없으면 0), 내가 이겼는지
         public event Action<int, int, int> PlayerKilled; // 공격자(0 = AI), 대상, 남은 수
+        public event Action<string> RequestFailed;       // 대기실에서 받은 ROOM/GAME 오류 코드
+
+        // ───────────── 대기실 (닉네임·방장·술래) ─────────────
+        private const string NickTag = "#NICK";
+        public const int MaxNicknameLength = 10;
+        private readonly Dictionary<int, string> nicknames = new Dictionary<int, string>();
+        private readonly HashSet<int> hostClaims = new HashSet<int>();
+        private readonly List<int> gamePlayers = new List<int>();
+        private int[] members = Array.Empty<int>();
+        private bool createdRoom;
+        private string nickname = "";
+
+        public string Nickname { get => nickname; set => nickname = SanitizeNickname(value); }
+        public IReadOnlyList<int> Members => members;             // 방 멤버 ID (오름차순)
+        public int HostId { get; private set; }
+        public bool IsHost => MyId != 0 && HostId == MyId;
+        public int TaggerId { get; private set; }                 // 이번 게임의 술래 (0 = 게임 아님)
+        public IReadOnlyList<int> GamePlayers => gamePlayers;     // 이번 게임 참가자 ID (오름차순)
+        public string GetNickname(int id) => nicknames.TryGetValue(id, out string n) && n.Length > 0 ? n : $"플레이어 {id}";
 
         // ───────────── 생명주기 ─────────────
 
@@ -82,6 +106,7 @@ namespace GameServer
             localHealth = localPlayer.GetComponent<CharacterHealth>();
             localMotor = localPlayer.GetComponent<CharacterMove>();
             localCombat = localPlayer.GetComponent<CharacterCombat>();
+            if (survivors == null) survivors = FindFirstObjectByType<SurvivorCounter>();
         }
 
         private void OnEnable()
@@ -205,6 +230,7 @@ namespace GameServer
                     if (InGame) CleanupGame();
                     MyId = 0;
                     RoomId = 0;
+                    ResetRoomState();
                     Status = $"연결 끊김 ({e.Text})";
                     break;
             }
@@ -243,15 +269,56 @@ namespace GameServer
                 case "CREATED":
                 case "JOINED":
                     RoomId = ParseInt(p[3]);
+                    ResetRoomState();
+                    createdRoom = p[2] == "CREATED";
                     AddLog($"방 {RoomId} 입장");
+                    AnnounceNickname();
+                    RequestMembers(); // 서버는 입장을 다른 멤버에게 알리지 않으므로 바로 목록을 받는다.
+                    break;
+                case "MEMBERS": // SERVER|ROOM|MEMBERS|방|1,2,3
+                {
+                    if (ParseInt(p[3]) != RoomId) return; // 나가기 전에 요청한 목록
+                    string[] ids = p[4].Split(',');
+                    var list = new int[ids.Length];
+                    bool newcomer = false;
+                    for (int i = 0; i < ids.Length; i++)
+                    {
+                        list[i] = ParseInt(ids[i]);
+                        if (Array.IndexOf(members, list[i]) < 0) newcomer = true;
+                    }
+                    members = list;
+                    // 나간 사람의 방장 표시는 지운다. 닉네임은 남겨 둔다(먼저 도착한 새 멤버의 이름일 수 있다).
+                    hostClaims.RemoveWhere(id => Array.IndexOf(members, id) < 0);
+                    RecomputeHost();
+                    if (newcomer) AnnounceNickname(); // 새로 온 사람이 내 이름을 받게 다시 알린다.
+                    break;
+                }
+                case "MESSAGE": // SERVER|ROOM|MESSAGE|방|보낸사람|본문(| 포함 가능)
+                {
+                    string body = string.Join("|", p, 5, p.Length - 5);
+                    string[] nick = body.Split(new[] { '|' }, 3);
+                    if (nick.Length == 3 && nick[0] == NickTag)
+                    {
+                        int sender = ParseInt(p[4]);
+                        nicknames[sender] = SanitizeNickname(nick[2]);
+                        if (nick[1] == "1") hostClaims.Add(sender); else hostClaims.Remove(sender);
+                        RecomputeHost();
+                    }
+                    else AddLog(message);
+                    break;
+                }
+                case "ERROR": // SERVER|ROOM|ERROR|코드
+                    AddLog(message);
+                    RequestFailed?.Invoke(p[3]);
                     break;
                 case "LEFT":
                     RoomId = 0;
+                    ResetRoomState();
                     if (InGame) CleanupGame(); // 게임 중 퇴장은 서버가 OUT으로 처리한다.
                     AddLog("방 퇴장");
                     break;
                 default:
-                    AddLog(message); // MEMBERS, MESSAGE, ERROR
+                    AddLog(message);
                     break;
             }
         }
@@ -293,11 +360,11 @@ namespace GameServer
                     if (ParseInt(p[3]) != CurrentGameId) return;
                     int winner = ParseInt(p[4]);
                     AddLog(winner == 0 ? "게임 종료: 승자 없음" : winner == MyId ? "게임 종료: 승리!" : $"게임 종료: {winner} 승리");
-                    CleanupGame();
-                    GameEnded?.Invoke(winner, winner != 0 && winner == MyId);
+                    CleanupGame(winner);
                     break;
                 case "ERROR":
                     AddLog(message); // COOLDOWN, OUT_OF_RANGE 등
+                    if (!InGame) RequestFailed?.Invoke(p[3]); // 대기실의 START 실패 (NOT_ENOUGH_PLAYERS 등)
                     break;
                 default:
                     AddLog(message);
@@ -311,6 +378,8 @@ namespace GameServer
         {
             if (InGame) CleanupGame(); // 이전 게임의 END보다 새 STARTED가 먼저 온 경우
             CurrentGameId = gameId;
+            // 술래 추첨용 난수는 AI 배치(UnityEngine.Random)와 따로 둔다.
+            var taggerRng = new System.Random(seed);
 
             // 모든 클라이언트가 같은 시드로 AI와 플레이어 시작 위치를 만든다.
             gameManager.StartNetworkGame(seed);
@@ -322,12 +391,19 @@ namespace GameServer
                 entries.Add((ParseInt(pair[0]), ParseInt(pair[1])));
             }
 
+            // 모든 클라이언트가 같은 순서·같은 시드로 뽑으므로 같은 술래가 나온다.
+            gamePlayers.Clear();
+            foreach (var (id, _) in entries) gamePlayers.Add(id);
+            gamePlayers.Sort();
+            TaggerId = gamePlayers.Count > 0 ? gamePlayers[taggerRng.Next(gamePlayers.Count)] : 0;
+
             // 내 캐릭터를 먼저 되살린 뒤 원격 플레이어를 등록해야 남은 인원 표시가 맞는다.
             foreach (var (id, spawn) in entries)
             {
                 if (id != MyId) continue;
                 gameManager.TryGetPlayerSpawn(spawn, out Vector3 position, out Quaternion rotation);
                 localPlayer.Spawn(position, rotation);
+                if (survivors != null) survivors.MarkAlive(localPlayer); // 지난 게임에서 죽었으면 다시 센다.
             }
             foreach (var (id, spawn) in entries)
             {
@@ -366,6 +442,8 @@ namespace GameServer
             remotes[id] = new RemotePlayer { Character = character, Health = health, Source = source };
             remoteIdsByHealth[health] = id;
             gameManager.Register_Player(character);
+            // HUD 생존 수와 처치 알림 이름. 게임이 끝나 Destroy되면 Character.OnDestroy가 등록을 푼다.
+            if (survivors != null) survivors.Register(character, GetNickname(id));
         }
 
         private void ApplyKill(int attacker, int target, int remaining)
@@ -394,7 +472,8 @@ namespace GameServer
             AddLog($"{id} 이탈");
         }
 
-        private void CleanupGame()
+        // END뿐 아니라 연결 끊김·퇴장·새 STARTED로 끝나도 GameEnded를 알린다(시작 연출·미션 진행·역할 안내 정리).
+        private void CleanupGame(int winner = 0)
         {
             foreach (RemotePlayer remote in remotes.Values)
             {
@@ -405,10 +484,14 @@ namespace GameServer
             remoteIdsByHealth.Clear();
             gameManager.End_Game();
             CurrentGameId = 0;
+            TaggerId = 0;
+            gamePlayers.Clear();
             attackPending = false;
             // 대기실에서 다시 움직일 수 있게 내 캐릭터를 되살린다.
             if (!localHealth.IsAlive)
                 localPlayer.Spawn(localPlayer.transform.position, localPlayer.transform.rotation);
+            if (survivors != null) survivors.MarkAlive(localPlayer);
+            GameEnded?.Invoke(winner, winner != 0 && winner == MyId);
         }
 
         // ───────────── 내 캐릭터 → 서버 ─────────────
@@ -445,6 +528,46 @@ namespace GameServer
             // 내 화면의 AI에게 맞은 경우만 직접 알린다. 서버 KILL로 죽은 경우는 제외한다.
             if (!InGame || suppressDieReport) return;
             Send("GAME|DIE");
+        }
+
+        // ───────────── 대기실 ─────────────
+
+        private void ResetRoomState()
+        {
+            members = Array.Empty<int>();
+            nicknames.Clear();
+            hostClaims.Clear();
+            createdRoom = false;
+            HostId = 0;
+        }
+
+        private void AnnounceNickname()
+        {
+            if (RoomId == 0) return;
+            nicknames[MyId] = Nickname;
+            if (createdRoom) hostClaims.Add(MyId);
+            Send($"ROOM|SAY|{NickTag}|{(createdRoom ? 1 : 0)}|{(Nickname.Length > 0 ? Nickname : "-")}"); // 빈 본문은 서버가 거부한다.
+        }
+
+        // 방을 만든 사람이 남아 있으면 그 사람, 없으면 가장 작은 ID가 방장이다. (모든 클라이언트가 같은 결과)
+        // shortcut: 서버는 방장을 모르므로 GAME|START 권한은 클라이언트 UI로만 막는다. 서버에 방장이 생기면 그 값으로 바꾼다.
+        private void RecomputeHost()
+        {
+            HostId = 0;
+            foreach (int id in members)
+                if (hostClaims.Contains(id)) { HostId = id; return; }
+            if (members.Length > 0) HostId = members[0];
+        }
+
+        // 다른 사람이 보낸 이름은 리치 텍스트 태그와 줄바꿈을 빼고 길이를 자른다.
+        public static string SanitizeNickname(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == "-") return "";
+            var sb = new System.Text.StringBuilder();
+            foreach (char c in value.Trim())
+                if (c != '<' && c != '>' && c != '|' && !char.IsControl(c)) sb.Append(c);
+            string s = sb.ToString().Trim();
+            return s.Length > MaxNicknameLength ? s.Substring(0, MaxNicknameLength) : s;
         }
 
         // ───────────── 유틸 ─────────────

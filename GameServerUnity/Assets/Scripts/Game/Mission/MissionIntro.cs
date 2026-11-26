@@ -38,8 +38,8 @@ namespace GameServer
         [Header("미션 목록 (모든 클라이언트가 같아야 함)")]
         [SerializeField] private MissionDefinition[] missionList =
         {
-            new MissionDefinition("점프 5번 하기", MissionGoal.Jump, 5),
             new MissionDefinition("점프 10번 하기", MissionGoal.Jump, 10),
+            new MissionDefinition("연속 점프 3번 하기", MissionGoal.ConsecutiveJumps, 3),
             new MissionDefinition("10초 동안 달리기", MissionGoal.RunSeconds, 10),
             new MissionDefinition("5초 동안 가만히 있기", MissionGoal.StandStillSeconds, 5),
             new MissionDefinition("20초 동안 걷기만 하기", MissionGoal.WalkOnlySeconds, 20),
@@ -127,8 +127,9 @@ namespace GameServer
         }
 
         // 게임 번호는 모든 클라이언트가 같으므로 미션도 같게 나온다.
+        // 술래는 NetworkGameManager가 시드로 뽑은 값을 쓴다(모든 클라이언트가 같다).
         private void HandleNetworkGameStarted(int gameId) =>
-            Play(localIsTagger, PickMissions(new System.Random(gameId)));
+            Play(network.TaggerId != 0 ? network.TaggerId == network.MyId : localIsTagger, PickMissions(new System.Random(gameId)));
 
         private void HandleNetworkGameEnded(int winner, bool iWon) => Cancel();
 
