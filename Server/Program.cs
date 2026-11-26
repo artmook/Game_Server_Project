@@ -7,6 +7,7 @@
 2. Ctrl+C를 종료 요청으로 바꾸어 연결과 비동기 작업을 정리한다.
 3. 서버 시작 및 실행 오류를 출력하고 실패 종료 코드를 반환한다.
 4. RoomManager(방 B + 게임 C)를 처리기로 연결한다.
+5. 게임 제한시간 시계(RoomManager.RunClockAsync)를 서버와 함께 돌린다.
 */
 
 using System.Text;
@@ -28,7 +29,17 @@ try
     var rooms = new RoomManager(server);
     server.MessageHandler = rooms.HandleMessageAsync;
     server.ClientDisconnected += rooms.HandleClientDisconnected;
-    await server.StartAsync(7777, stopping.Token);
+    // 게임 제한시간(5분) 시계. 남은 시간 통지와 시간 초과 판정을 서버가 맡는다.
+    Task clock = rooms.RunClockAsync(stopping.Token);
+    try
+    {
+        await server.StartAsync(7777, stopping.Token);
+    }
+    finally
+    {
+        stopping.Cancel(); // 서버 시작 실패로 끝나도 시계를 멈춘다.
+        await clock;
+    }
     // 서버 종료 중 접속 종료로 생긴 게임 탈락 통지(OUT/END) 송신까지 끝낸다.
     await rooms.WaitForNoticesAsync();
 }
