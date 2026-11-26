@@ -8,7 +8,7 @@ LobbyView
    - 메뉴 화면: 닉네임 입력, "방 만들기", 초대 코드 입력 후 "참가"
    - 방 화면: 초대 코드(= 서버 방 번호)와 복사 버튼, 참가 인원·닉네임 목록(방장 표시),
      "게임 시작"(방장만, 2명 이상), "나가기"
-2. 게임 중에는 대기실을 숨기고, 게임이 끝나면 방 화면으로 돌아온다.
+2. 게임 중에는 대기실을 숨기고, 게임이 끝나면 결과 화면(GameResultView)에서 확인을 누른 뒤 방 화면으로 돌아온다.
 3. 게임이 시작되면 위쪽에 역할 안내(내 역할, 술래·도망자 닉네임)를 잠깐 보여 준다.
 4. 서버는 다른 사람의 입장·퇴장을 알려 주지 않으므로, 방 화면에서 멤버 목록을 주기적으로 다시 요청한다.
 5. UI는 Tools > 로비 UI 만들기(LobbyUIBuilder)로 만들고 참조를 연결한다.
@@ -101,7 +101,8 @@ namespace GameServer
 
         private void Update()
         {
-            bool visible = !network.InGame;
+            // 게임 결과 화면을 보는 동안에는 숨기고, 결과 확인 버튼을 누르면 방 화면으로 돌아온다.
+            bool visible = !network.InGame && !network.ResultPending;
             group.alpha = visible ? 1f : 0f;
             group.blocksRaycasts = group.interactable = visible;
             if (visible && !wasVisible) pollTimer = 0f;   // 게임이 끝나 돌아오면 바로 목록을 다시 받는다.

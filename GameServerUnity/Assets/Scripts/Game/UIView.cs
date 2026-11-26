@@ -91,7 +91,10 @@ namespace GameServer
         }
 
         // 술래(내 캐릭터)가 처치했을 때: "AI를 처리했습니다." 한 줄을 반투명 검정 배경과 함께 띄운다.
-        public void ShowKill(string targetName)
+        public void ShowKill(string targetName) => ShowFeed(KillText(targetName));
+
+        // 처치 알림 자리에 원하는 한 줄(리치 텍스트)을 띄운다. 다른 사람의 잡기·미션 완료 알림에 쓴다.
+        public void ShowFeed(string text)
         {
             if (!killFeedRoot) return;
 
@@ -108,7 +111,7 @@ namespace GameServer
                 if (!box) return;
             }
 
-            SetFeedText(box, KillText(targetName));
+            SetFeedText(box, text);
             box.SetAsFirstSibling();   // 최신이 위로
             if (!box.TryGetComponent(out CanvasGroup group)) group = box.gameObject.AddComponent<CanvasGroup>();
             feed.Add((group, Time.unscaledTime));
@@ -130,10 +133,28 @@ namespace GameServer
         private string KillText(string targetName)
         {
             string color = ColorUtility.ToHtmlStringRGB(targetName == "AI" ? new Color(1f, 0.42f, 0.42f) : accent);
-            // AI를 처리하면 술래는 오인 공격 페널티(공격 대기 증가)를 받는다.
-            if (targetName == "AI") return $"<color=#{color}>오인 공격!</color> AI를 처리해서 공격이 늦어집니다.";
-            return $"<color=#{color}>{targetName}</color>{ObjectParticle(targetName)} 처리했습니다.";
+            // AI를 때리면 AI는 8초 기절하고, 술래는 오인 공격 페널티(공격 대기 증가)를 받는다.
+            if (targetName == "AI") return $"<color=#{color}>오인 공격!</color> AI가 기절해서 공격이 늦어집니다.";
+            return $"<color=#{color}>{targetName}</color>{ObjectParticle(targetName)} 잡았습니다.";
         }
+
+        // 다른 사람이 보는 잡기 알림: "술래 ○○이(가) △△을(를) 잡았습니다."
+        public string CatchText(string taggerName, string runnerName)
+        {
+            string a = ColorUtility.ToHtmlStringRGB(new Color(1f, 0.35f, 0.31f));
+            string b = ColorUtility.ToHtmlStringRGB(accent);
+            // 조사는 원래 이름으로 고르고, 화면에는 태그가 먹지 않게 noparse로 감싸 넣는다.
+            return $"술래 <color=#{a}><noparse>{taggerName}</noparse></color>{SubjectParticle(taggerName)} " +
+                   $"<color=#{b}><noparse>{runnerName}</noparse></color>{ObjectParticle(runnerName)} 잡았습니다.";
+        }
+
+        // 받침이 있으면 "이", 없으면 "가". ObjectParticle과 같은 방식으로 판단한다.
+        private static string SubjectParticle(string word) => ObjectParticle(word) switch
+        {
+            "을" => "이",
+            "를" => "가",
+            _ => "이(가)",
+        };
 
         // 배경 상자(반투명 검정, 둥근 모서리) + 글자. 글자 스타일은 feedTemplate을 따른다.
         private RectTransform CreateFeedItem()

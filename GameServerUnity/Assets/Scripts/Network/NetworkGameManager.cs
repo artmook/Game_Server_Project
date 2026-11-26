@@ -10,9 +10,16 @@ NetworkGameManager (초안)
 5. 내 화면의 AI에게 맞아 죽으면 GAME|DIE로 서버에 알린다.
 6. 닉네임·방장: 서버에 없는 기능이라 방 채팅(ROOM|SAY)으로 "#NICK|방장여부|닉네임"을 주고받는다.
    새 멤버가 보이면 모두 다시 알려 새로 온 사람도 이름을 받는다. 방장은 방을 만든 사람, 없으면 가장 작은 ID.
-7. 술래: 서버가 정하지 않으므로 STARTED의 시드로 모든 클라이언트가 같은 사람을 뽑는다.
+7. 술래: 서버가 STARTED 끝에 붙여 보낸 술래 ID를 그대로 쓴다. (예전의 시드 추첨은 쓰지 않는다)
+8. 제한시간: 서버 TIME의 남은 초를 보관한다. 시간이 0이 되어도 클라이언트가 끝내지 않고 서버 END를 기다린다.
+9. 미션: 미션을 모두 끝내면 GAME|MISSION을 한 번 보낸다. 완료 상태와 승패는 서버가 판정한다.
+10. 결과: END의 승리 팀(RUNNER/TAGGER)을 GameResultReceived로 알린다. 결과 화면에서 확인을 누를 때까지
+    ResultPending이 켜져 대기실을 가린다.
 
-플레이어 생사는 서버가 판정한다. 원격 플레이어는 로컬 피격으로 죽지 않고 서버 KILL로만 죽는다.
+11. AI: 서버가 정한 AI 호스트만 AI를 움직이고 위치를 보낸다. 나머지는 그 위치를 따른다(NetworkAISync).
+
+플레이어 생사는 서버가 판정한다. 원격 플레이어와 내 캐릭터 모두 로컬 피격으로 죽지 않고 서버 KILL로만 죽는다.
+(술래의 공격만 도망자를 잡는다. 게임 중에는 내 캐릭터도 ServerAuthoritative로 둔다.)
 AI는 시드로 같은 위치에 배치하지만 이후 움직임은 PC마다 다르다.
 */
 
@@ -57,6 +64,7 @@ namespace GameServer
         private readonly List<string> logLines = new List<string>();
 
         private ServerConnection connection;
+        private NetworkAISync aiSync;   // AI 위치 동기화 (호스트 권한)
         private CharacterHealth localHealth;
         private CharacterMove localMotor;
         private CharacterCombat localCombat;
@@ -80,6 +88,38 @@ namespace GameServer
         public event Action<int, bool> GameEnded;    // 승자 ID(없으면 0), 내가 이겼는지
         public event Action<int, int, int> PlayerKilled; // 공격자(0 = AI), 대상, 남은 수
         public event Action<string> RequestFailed;       // 대기실에서 받은 ROOM/GAME 오류 코드
+        public event Action<int> RemainingTimeChanged;   // 서버가 알려 준 남은 시간(초)
+        public event Action<int, int, int> MissionReported; // 미션을 모두 끝낸 도망자, 완료한 생존 도망자 수, 생존 도망자 수
+        public event Action<GameResult> GameResultReceived; // 서버 END의 승리 팀
+
+        // ───────────── 제한시간·미션·결과 ─────────────
+        public const string RunnerTeam = "RUNNER";
+        public const string TaggerTeam = "TAGGER";
+
+        public readonly struct GameResult
+        {
+            public readonly int GameId;
+            public readonly string WinnerTeam;   // RUNNER 또는 TAGGER
+            public readonly string Reason;       // MISSION_CLEAR, ALL_CAUGHT, TIME_OVER, TAGGER_LEFT
+            public readonly bool LocalWasTagger;
+            public readonly bool LocalWon;
+
+            public GameResult(int gameId, string winnerTeam, string reason, bool localWasTagger, bool localWon)
+            {
+                GameId = gameId; WinnerTeam = winnerTeam; Reason = reason;
+                LocalWasTagger = localWasTagger; LocalWon = localWon;
+            }
+        }
+
+        private readonly HashSet<int> missionDone = new HashSet<int>();
+        private bool missionReported;
+        private bool defaultLocalServerAuthoritative;   // 게임이 끝나면 내 캐릭터 체력 설정을 원래대로 돌린다.
+
+        public int TimeLimitSeconds { get; private set; }         // STARTED의 제한시간
+        public int RemainingSeconds { get; private set; } = -1;   // -1이면 아직 모른다.
+        public bool ResultPending { get; private set; }           // 결과 화면을 보고 있는 중 (대기실을 가린다)
+        public GameResult LastResult { get; private set; }
+        public bool HasCompletedMission(int id) => missionDone.Contains(id);
 
         // ───────────── 대기실 (닉네임·방장·술래) ─────────────
         private const string NickTag = "#NICK";
@@ -103,9 +143,15 @@ namespace GameServer
 
         private void Awake()
         {
+            // 창이 포커스를 잃어도 멈추지 않게 한다. 꺼져 있으면 서버 메시지 처리·시작 연출·이동 보고가
+            // 모두 멈춰, 다른 창을 보는 동안 이 클라이언트만 게임이 멈춘 것처럼 된다.
+            Application.runInBackground = true;
             localHealth = localPlayer.GetComponent<CharacterHealth>();
             localMotor = localPlayer.GetComponent<CharacterMove>();
             localCombat = localPlayer.GetComponent<CharacterCombat>();
+            defaultLocalServerAuthoritative = localHealth.ServerAuthoritative;
+            if (!TryGetComponent(out aiSync)) aiSync = gameObject.AddComponent<NetworkAISync>();
+            aiSync.Init(this, gameManager);
             if (survivors == null) survivors = FindFirstObjectByType<SurvivorCounter>();
         }
 
@@ -191,6 +237,16 @@ namespace GameServer
         public void LeaveRoom() => Send("ROOM|LEAVE");
         public void RequestMembers() => Send("ROOM|MEMBERS");
         public void RequestStartGame() => Send("GAME|START");
+
+        // 내 미션을 모두 끝냈다고 서버에 알린다. 게임마다 한 번만 보낸다. 승패는 서버가 정한다.
+        public void ReportMissionsCleared()
+        {
+            if (!InGame || missionReported || MyId == TaggerId || !localHealth.IsAlive) return;
+            missionReported = Send("GAME|MISSION");
+        }
+
+        // 결과 화면의 확인 버튼. 대기실(방 화면)로 돌아간다.
+        public void ConfirmResult() => ResultPending = false;
 
         public bool Send(string message)
         {
@@ -327,12 +383,43 @@ namespace GameServer
         {
             switch (p[2])
             {
-                case "STARTED": // SERVER|GAME|STARTED|방|게임번호|시드|ID:스폰,...
+                case "STARTED": // SERVER|GAME|STARTED|방|게임번호|시드|ID:스폰,...|술래ID|제한시간(초)
                 {
                     int gameId = ParseInt(p[4]);
                     if (gameId <= LastGameId) return; // 이미 지나간 게임
                     LastGameId = gameId;
-                    BeginGame(gameId, ParseInt(p[5]), p[6]);
+                    int tagger = p.Length > 7 ? ParseInt(p[7]) : 0;
+                    int timeLimit = p.Length > 8 ? ParseInt(p[8]) : -1;
+                    int aiHost = p.Length > 9 ? ParseInt(p[9]) : 0;
+                    BeginGame(gameId, ParseInt(p[5]), p[6], tagger, timeLimit, aiHost);
+                    break;
+                }
+                case "AI": // SERVER|GAME|AI|게임번호|번호:x:y:z:회전:속도:기절,...
+                    if (ParseInt(p[3]) != CurrentGameId) return;
+                    aiSync.ApplySnapshot(p[4]);
+                    break;
+                case "AISTUN": // SERVER|GAME|AISTUN|게임번호|AI번호
+                    if (ParseInt(p[3]) != CurrentGameId) return;
+                    aiSync.ApplyRemoteStun(ParseInt(p[4]));
+                    break;
+                case "AIHOST": // SERVER|GAME|AIHOST|게임번호|새 호스트 ID
+                    if (ParseInt(p[3]) != CurrentGameId) return;
+                    aiSync.SetHost(ParseInt(p[4]));
+                    AddLog($"AI 호스트 변경: {GetNickname(ParseInt(p[4]))}");
+                    break;
+                case "TIME": // SERVER|GAME|TIME|게임번호|남은 초
+                    if (ParseInt(p[3]) != CurrentGameId) return;
+                    RemainingSeconds = Math.Max(0, ParseInt(p[4]));
+                    RemainingTimeChanged?.Invoke(RemainingSeconds);
+                    break;
+                case "MISSION": // SERVER|GAME|MISSION|게임번호|ID|완료한 생존 도망자 수|생존 도망자 수
+                {
+                    if (ParseInt(p[3]) != CurrentGameId) return;
+                    int id = ParseInt(p[4]);
+                    missionDone.Add(id);
+                    if (id == MyId) missionReported = true;
+                    AddLog($"{GetNickname(id)} 미션 완료 ({p[5]}/{p[6]})");
+                    MissionReported?.Invoke(id, ParseInt(p[5]), ParseInt(p[6]));
                     break;
                 }
                 case "MOVE": // SERVER|GAME|MOVE|ID|x|y|z|회전|속도
@@ -356,12 +443,31 @@ namespace GameServer
                     if (ParseInt(p[3]) != CurrentGameId) return;
                     ApplyOut(ParseInt(p[4]));
                     break;
-                case "END": // SERVER|GAME|END|게임번호|승자
+                case "END": // SERVER|GAME|END|게임번호|승자ID(TAGGER 승리면 술래, 아니면 0)|승리 팀|이유
+                {
                     if (ParseInt(p[3]) != CurrentGameId) return;
                     int winner = ParseInt(p[4]);
-                    AddLog(winner == 0 ? "게임 종료: 승자 없음" : winner == MyId ? "게임 종료: 승리!" : $"게임 종료: {winner} 승리");
-                    CleanupGame(winner);
+                    if (p.Length > 5)
+                    {
+                        // 술래잡기 결과. CleanupGame이 술래 정보를 지우기 전에 내 승패를 계산한다.
+                        string team = p[5];
+                        string reason = p.Length > 6 ? p[6] : "";
+                        bool wasTagger = TaggerId != 0 && TaggerId == MyId;
+                        bool won = team == TaggerTeam ? wasTagger : team == RunnerTeam && !wasTagger;
+                        var result = new GameResult(CurrentGameId, team, reason, wasTagger, won);
+                        AddLog($"게임 종료: {(team == TaggerTeam ? "술래" : "도망자")} 승리 ({reason})");
+                        LastResult = result;
+                        ResultPending = true;
+                        CleanupGame(winner, won);
+                        GameResultReceived?.Invoke(result);
+                    }
+                    else
+                    {
+                        AddLog(winner == 0 ? "게임 종료: 승자 없음" : winner == MyId ? "게임 종료: 승리!" : $"게임 종료: {winner} 승리");
+                        CleanupGame(winner);
+                    }
                     break;
+                }
                 case "ERROR":
                     AddLog(message); // COOLDOWN, OUT_OF_RANGE 등
                     if (!InGame) RequestFailed?.Invoke(p[3]); // 대기실의 START 실패 (NOT_ENOUGH_PLAYERS 등)
@@ -374,12 +480,17 @@ namespace GameServer
 
         // ───────────── 게임 진행 ─────────────
 
-        private void BeginGame(int gameId, int seed, string spawnList)
+        private void BeginGame(int gameId, int seed, string spawnList, int taggerId, int timeLimit, int aiHost)
         {
             if (InGame) CleanupGame(); // 이전 게임의 END보다 새 STARTED가 먼저 온 경우
             CurrentGameId = gameId;
-            // 술래 추첨용 난수는 AI 배치(UnityEngine.Random)와 따로 둔다.
-            var taggerRng = new System.Random(seed);
+            ResultPending = false;       // 결과 화면을 보던 중 새 게임이 시작된 경우
+            missionDone.Clear();
+            missionReported = false;
+            TimeLimitSeconds = timeLimit;
+            RemainingSeconds = timeLimit;
+            // 술래의 공격(서버 KILL)으로만 죽는다. 내 화면의 AI나 다른 피격으로는 죽지 않는다.
+            localHealth.ServerAuthoritative = true;
 
             // 모든 클라이언트가 같은 시드로 AI와 플레이어 시작 위치를 만든다.
             gameManager.StartNetworkGame(seed);
@@ -391,11 +502,12 @@ namespace GameServer
                 entries.Add((ParseInt(pair[0]), ParseInt(pair[1])));
             }
 
-            // 모든 클라이언트가 같은 순서·같은 시드로 뽑으므로 같은 술래가 나온다.
+            // 술래는 서버가 정해 STARTED에 넣어 보낸다. 모든 클라이언트가 같은 값을 받는다.
             gamePlayers.Clear();
             foreach (var (id, _) in entries) gamePlayers.Add(id);
             gamePlayers.Sort();
-            TaggerId = gamePlayers.Count > 0 ? gamePlayers[taggerRng.Next(gamePlayers.Count)] : 0;
+            TaggerId = gamePlayers.Contains(taggerId) ? taggerId : 0;
+            if (TaggerId == 0) Debug.LogWarning($"[NET] 서버가 술래를 알려 주지 않았습니다 (게임 {gameId}).");
 
             // 내 캐릭터를 먼저 되살린 뒤 원격 플레이어를 등록해야 남은 인원 표시가 맞는다.
             foreach (var (id, spawn) in entries)
@@ -411,6 +523,10 @@ namespace GameServer
                 gameManager.TryGetPlayerSpawn(spawn, out Vector3 position, out Quaternion rotation);
                 CreateRemote(id, position, rotation);
             }
+
+            // AI는 서버가 정한 호스트만 움직이고, 나머지는 호스트가 보낸 위치를 따른다.
+            // (예전 서버라 호스트를 알려 주지 않으면 가장 작은 ID를 호스트로 본다.)
+            aiSync.BeginGame(aiHost != 0 ? aiHost : (gamePlayers.Count > 0 ? gamePlayers[0] : MyId));
 
             moveTimer = 0f; // 시작 위치를 바로 보고해야 서버가 공격 거리를 판정할 수 있다.
             attackPending = false;
@@ -473,7 +589,8 @@ namespace GameServer
         }
 
         // END뿐 아니라 연결 끊김·퇴장·새 STARTED로 끝나도 GameEnded를 알린다(시작 연출·미션 진행·역할 안내 정리).
-        private void CleanupGame(int winner = 0)
+        // iWon: 팀 승패(술래잡기 END)를 넘기면 그 값을, 없으면 예전처럼 승자 ID로 판단한다.
+        private void CleanupGame(int winner = 0, bool? iWon = null)
         {
             foreach (RemotePlayer remote in remotes.Values)
             {
@@ -482,16 +599,19 @@ namespace GameServer
             }
             remotes.Clear();
             remoteIdsByHealth.Clear();
+            aiSync.EndGame();   // AI를 원래(NavAIInputSource)대로 돌린 뒤 풀에 반납한다.
             gameManager.End_Game();
             CurrentGameId = 0;
             TaggerId = 0;
             gamePlayers.Clear();
             attackPending = false;
+            RemainingSeconds = -1;
+            localHealth.ServerAuthoritative = defaultLocalServerAuthoritative;
             // 대기실에서 다시 움직일 수 있게 내 캐릭터를 되살린다.
             if (!localHealth.IsAlive)
                 localPlayer.Spawn(localPlayer.transform.position, localPlayer.transform.rotation);
             if (survivors != null) survivors.MarkAlive(localPlayer);
-            GameEnded?.Invoke(winner, winner != 0 && winner == MyId);
+            GameEnded?.Invoke(winner, iWon ?? (winner != 0 && winner == MyId));
         }
 
         // ───────────── 내 캐릭터 → 서버 ─────────────
@@ -516,6 +636,8 @@ namespace GameServer
             // 원격 플레이어를 맞혔으면 대상 ID를 붙여 서버 판정을 요청한다. AI는 대상 없이 보낸다.
             if (target is CharacterHealth health && remoteIdsByHealth.TryGetValue(health, out int id))
                 attackTarget = id;
+            else if (InGame && target is CharacterHealth aiHealth)
+                aiSync.ReportLocalHit(aiHealth);   // AI 기절을 다른 화면에도 알린다.
         }
 
         private void HandleLocalJump()

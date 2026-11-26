@@ -29,6 +29,8 @@ namespace GameServer
         public bool IsPlaying { get; private set; }
         public int MaxPlayers => maxPlayers;
         public int RemainingPlayers { get; private set; }
+        // 네트워크 AI 동기화용. 시드로 같은 순서로 만들므로 번호(인덱스)가 모든 클라이언트에서 같다.
+        public IReadOnlyList<Character> ActiveAI => activeAI;
 
         public event Action GameStarted;
         public event Action<int, int> RemainingPlayersChanged;

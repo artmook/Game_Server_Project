@@ -8,8 +8,9 @@ MissionIntro
    안내를 보여 주고, 모든 플레이어의 카운트다운이 동시에 시작된다.
 3. 클라이언트 기능만 담는다. 네트워크 코드는 고치지 않고, 이미 있는 공개 이벤트만 구독한다.
    - 미션: 네트워크 게임이면 게임 번호로 뽑는다(모든 클라이언트가 같은 번호를 받으므로 같은 미션).
-   - 술래: 지금 서버는 술래 정보를 보내지 않는다. LocalIsTagger 값을 쓰므로,
-     나중에 서버가 술래를 알려 주면 게임 시작 전에 이 값만 넣어 주면 된다.
+   - 술래: 네트워크 게임이면 서버가 STARTED로 알려 준 술래(NetworkGameManager.TaggerId)를 쓴다.
+     오프라인 시험(Test)에서는 LocalIsTagger 값을 쓴다.
+   - 미션을 모두 끝내면 NetworkGameManager.ReportMissionsCleared로 서버에 알린다.
 4. 연출 동안 GameFlow.ControlsLocked로 조작을 막고, "Start!"가 뜨는 순간 풀어 게임을 시작한다.
 5. 다른 곳에서 직접 연출을 틀고 싶으면 Play(술래 여부, 미션 번호들)를 부른다. (Test가 이걸로 시험한다.)
 6. 역할 규칙(도망자 = 술래가 아닌 플레이어):
@@ -127,7 +128,7 @@ namespace GameServer
         }
 
         // 게임 번호는 모든 클라이언트가 같으므로 미션도 같게 나온다.
-        // 술래는 NetworkGameManager가 시드로 뽑은 값을 쓴다(모든 클라이언트가 같다).
+        // 술래는 서버가 정해 NetworkGameManager에 넣어 둔 값을 쓴다(모든 클라이언트가 같다).
         private void HandleNetworkGameStarted(int gameId) =>
             Play(network.TaggerId != 0 ? network.TaggerId == network.MyId : localIsTagger, PickMissions(new System.Random(gameId)));
 
@@ -264,6 +265,8 @@ namespace GameServer
             AllMissionsCleared = true;
             view.ShowAllCleared();
             AllCleared?.Invoke();
+            // 네트워크 게임이면 서버에 미션 완료를 알린다. RUNNER 승리 판정은 서버가 한다.
+            if (network != null && network.InGame) network.ReportMissionsCleared();
         }
 
         private static string ProgressText(float value, MissionDefinition m)

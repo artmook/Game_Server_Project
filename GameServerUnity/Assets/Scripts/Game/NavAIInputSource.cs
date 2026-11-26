@@ -27,6 +27,10 @@ namespace GameServer
         [SerializeField] private float stuckTime = 1.0f;       // 못 움직이고 막힌 것으로 판정할 시간
         [SerializeField] private float stuckSpeed = 0.1f;      // 이거보다 느리면 끼인 것임
 
+        [Header("기절 (술래에게 맞으면)")]
+        [Tooltip("맞으면 즉시 쓰러져(Die 애니메이션) 이 시간 동안 기절했다가 일어나 순찰을 이어 간다. 0 이하이면 예전처럼 사라진다.")]
+        [SerializeField] private float stunDuration = 8f;
+
         private Vector3 smoothedDir;
         private float stuckTimer;
         private Vector3 lastPos;
@@ -73,6 +77,9 @@ namespace GameServer
             pendingAttack = false;
             warnedOffMesh = false;
             idleTimer = 0f;
+            smoothedDir = Vector3.zero;
+            stuckTimer = 0f;
+            lastPos = transform.position;
 
             if (EnsureAgent())
             {
@@ -269,7 +276,22 @@ namespace GameServer
                 agent.enabled = false;
             }
 
-            StartCoroutine(DespawnAfterDelay(5f));
+            // 기절: 쓰러진 채(IsAlive = false라 명령·이동·추가 피격이 모두 멈춘다) 기다렸다가 제자리에서 일어난다.
+            // 오인 공격 쿨타임(8초)은 CharacterCombat이 공격한 쪽에 그대로 준다.
+            if (stunDuration > 0f) StartCoroutine(RecoverAfterStun(stunDuration));
+            else StartCoroutine(DespawnAfterDelay(5f));
+        }
+
+        public bool IsStunned => health != null && !health.IsAlive && stunDuration > 0f;
+
+        private IEnumerator RecoverAfterStun(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+
+            // Character.Spawn이 체력·쿨타임·애니메이터(Idle로)·이 명령 소스(NavMeshAgent 재활성화, 새 목적지)를
+            // 한 번에 되돌린다. 위치와 방향은 쓰러진 자리 그대로이다.
+            Character character = GetComponent<Character>();
+            if (character != null) character.Spawn(transform.position, transform.rotation);
         }
 
         private IEnumerator DespawnAfterDelay(float delay)
