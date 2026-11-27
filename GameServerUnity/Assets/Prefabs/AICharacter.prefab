@@ -690,7 +690,6 @@ GameObject:
   - component: {fileID: 925373728590068159}
   - component: {fileID: 8990308742893349297}
   - component: {fileID: 8173141070525825043}
-  - component: {fileID: 8937559921717828596}
   - component: {fileID: 4330238015895238916}
   - component: {fileID: 6020784909632124124}
   m_Layer: 6
@@ -785,6 +784,12 @@ MonoBehaviour:
   jumpHeight: 2
   gravity: -10
   rotationSpeed: 720
+  jumpBufferTime: 0.15
+  coyoteTime: 0.12
+  groundProbeDistance: 0.1
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!114 &3752127800351248779
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -844,19 +849,6 @@ MonoBehaviour:
     m_Bits: 64
   canDealDamage: 1
   hitEffectPool: {fileID: 0}
---- !u!114 &8937559921717828596
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5589162496778080620}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 68cd1e334fe0342468c0a6f85eb7a9c4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GameServer.Health
-  serverAuthoritative: 0
 --- !u!114 &4330238015895238916
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -872,7 +864,6 @@ MonoBehaviour:
   wanderRadius: 50
   maxMoveTime: 10
   attackChance: 0.05
-  actionChance: 0.15
   runChance: 0.108
   jumpChancePerSecond: 0.1
   directionSmooth: 1
@@ -885,7 +876,7 @@ NavMeshAgent:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5589162496778080620}
-  m_Enabled: 1
+  m_Enabled: 0
   m_AgentTypeID: 0
   m_Radius: 0.5
   m_Speed: 3.5

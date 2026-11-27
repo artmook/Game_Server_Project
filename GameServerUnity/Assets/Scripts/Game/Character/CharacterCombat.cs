@@ -7,6 +7,7 @@ namespace GameServer
     public class CharacterCombat : MonoBehaviour
     {
         [SerializeField] private float cooldown = 2f;
+        [SerializeField] private float wrongHitCooldown = 8f;   // AI를 잘못 때리면 이만큼 기다린다 (오인 공격 페널티)
         [SerializeField] private float attackRange = 3f;      // 공격 사거리
         [SerializeField] private float maxAimDistance = 50f;  // 카메라 Ray 길이
         [SerializeField] private LayerMask hittableLayers = ~0;
@@ -15,11 +16,11 @@ namespace GameServer
 
         private readonly RaycastHit[] hitBuffer = new RaycastHit[16];
         private float cooldownRemaining;
-        private float currentDuration;   // this cycle's full cooldown (base + penalty), for the UI ring
+        private float currentDuration;   // 지금 돌고 있는 쿨타임 길이(기본 + 패널티). UI 게이지용
 
-        public float CooldownDuration => cooldown;
+        public float CooldownDuration => CurrentCooldownDuration;
         public float CurrentCooldownDuration => currentDuration > 0f ? currentDuration : cooldown;
-        public bool IsPenalized { get; private set; }   // cooldown was extended by a penalty this cycle
+        public bool IsPenalized { get; private set; }   // 이번 쿨타임이 패널티(오인 공격 등)로 늘어났는지
         public float CooldownRemaining => cooldownRemaining;
         public bool IsReady => cooldownRemaining <= 0f;
         // false: attack animation/cooldown only, no hit (MissionIntro turns this off for non-taggers)
@@ -27,9 +28,10 @@ namespace GameServer
 
         public event Action AttackPerformed;
         public event Action<IDamageable> TargetHit;
-        public event Action<float> CooldownPenaltyApplied;   // added seconds
+        public event Action WrongHit;                  // 사람이 아닌 AI를 맞혔을 때
+        public event Action<float> CooldownPenaltyApplied;   // 패널티로 걸린 쿨타임(초). 공격 버튼 위 알림용
 
-        // Extend the current cooldown (e.g. tagger killed an AI). If idle, starts a cooldown of 'seconds'.
+        // 지금 쿨타임을 늘린다. 쉬는 중이면 seconds짜리 쿨타임을 새로 건다.
         public void AddCooldownPenalty(float seconds)
         {
             if (seconds <= 0f) return;
@@ -58,7 +60,7 @@ namespace GameServer
         {
             if (!IsReady) return false;
 
-            // Runner (canDealDamage off): attack motion only, so no cooldown at all.
+            // 도망자(canDealDamage 꺼짐): 공격 동작만 하고 쿨타임은 없다.
             if (canDealDamage)
             {
                 cooldownRemaining = cooldown;
@@ -105,6 +107,15 @@ namespace GameServer
             target.TakeHit(new HitInfo(gameObject, closest.point, closest.normal));
             if (hitEffectPool != null) hitEffectPool.Play(closest.point, closest.normal);
             TargetHit?.Invoke(target);
+
+            // 오인 공격: AI를 맞히면 다음 공격까지 더 오래 기다린다. (원격 플레이어는 Player 태그)
+            if (target is Component hitComponent && !hitComponent.CompareTag("Player"))
+            {
+                cooldownRemaining = currentDuration = wrongHitCooldown;
+                IsPenalized = true;
+                WrongHit?.Invoke();
+                CooldownPenaltyApplied?.Invoke(wrongHitCooldown);   // 공격 버튼 위 "오인 공격 패널티" 알림
+            }
         }
     }
 }

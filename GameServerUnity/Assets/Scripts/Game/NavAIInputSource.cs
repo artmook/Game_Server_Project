@@ -16,10 +16,19 @@ namespace GameServer
         [SerializeField, Range(0f, 1f)] private float runChance = 0.3f;
         [SerializeField] private float jumpChancePerSecond = 0.1f;
 
+        [Header("멈춤 (사람도 멈춰서 미션을 할 수 있게)")]
+        [Tooltip("목적지에 닿거나 이동 시간이 끝났을 때 잠깐 서 있을 확률")]
+        [SerializeField, Range(0f, 1f)] private float idleChance = 0.3f;
+        [SerializeField] private Vector2 idleTime = new Vector2(1f, 4f);
+
         [Header("Smoothing / Stuck")]
         [SerializeField] private float directionSmooth = 1f;   // 방향 전환 부드러움
         [SerializeField] private float stuckTime = 1.0f;       // 못 움직이고 막힌 것으로 판정할 시간
         [SerializeField] private float stuckSpeed = 0.1f;      // 이거보다 느리면 끼인 것임
+
+        [Header("기절 (술래에게 맞으면)")]
+        [Tooltip("맞으면 즉시 쓰러져(Die 애니메이션) 이 시간 동안 기절했다가 일어나 순찰을 이어 간다. 0 이하이면 예전처럼 사라진다.")]
+        [SerializeField] private float stunDuration = 8f;
 
         private Vector3 smoothedDir;
         private float stuckTimer;
@@ -30,6 +39,7 @@ namespace GameServer
         private CharacterHealth health;
 
         private float timer;
+        private float idleTimer;
         private bool running;
         private bool warnedOffMesh;
 
@@ -63,6 +73,10 @@ namespace GameServer
             StopAllCoroutines();
 
             warnedOffMesh = false;
+            idleTimer = 0f;
+            smoothedDir = Vector3.zero;
+            stuckTimer = 0f;
+            lastPos = transform.position;
 
             if (EnsureAgent())
             {
@@ -116,9 +130,27 @@ namespace GameServer
             float dt = Time.deltaTime;
 
             agent.nextPosition = transform.position;
-            timer -= dt;
 
-            if (HasArrived() || timer <= 0f || agent.pathStatus == NavMeshPathStatus.PathInvalid)
+            // 제자리에 서 있는 중: 시간이 끝나면 새 목적지로 출발한다.
+            if (idleTimer > 0f)
+            {
+                idleTimer -= dt;
+                smoothedDir = Vector3.zero;
+                lastPos = transform.position;
+                if (idleTimer <= 0f) PickNewDestination();
+                return command;
+            }
+
+            timer -= dt;
+            bool legDone = HasArrived() || timer <= 0f;
+            if (legDone && Random.value < idleChance)
+            {
+                idleTimer = Random.Range(idleTime.x, idleTime.y);
+                agent.ResetPath();
+                return command;
+            }
+
+            if (legDone || agent.pathStatus == NavMeshPathStatus.PathInvalid)
             {
                 PickNewDestination();
             }
@@ -227,14 +259,29 @@ namespace GameServer
                 agent.enabled = false;
             }
 
-            StartCoroutine(DespawnAfterDelay(5f));
+            // 기절: 쓰러진 채(IsAlive = false라 명령·이동·추가 피격이 모두 멈춘다) 기다렸다가 제자리에서 일어난다.
+            // 오인 공격 쿨타임(8초)은 CharacterCombat이 공격한 쪽에 그대로 준다.
+            if (stunDuration > 0f) StartCoroutine(RecoverAfterStun(stunDuration));
+            else StartCoroutine(DespawnAfterDelay(5f));
+        }
+
+        public bool IsStunned => health != null && !health.IsAlive && stunDuration > 0f;
+
+        private IEnumerator RecoverAfterStun(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+
+            // Character.Spawn이 체력·쿨타임·애니메이터(Idle로)·이 명령 소스(NavMeshAgent 재활성화, 새 목적지)를
+            // 한 번에 되돌린다. 위치와 방향은 쓰러진 자리 그대로이다.
+            Character character = GetComponent<Character>();
+            if (character != null) character.Spawn(transform.position, transform.rotation);
         }
 
         private IEnumerator DespawnAfterDelay(float delay)
         {
             yield return new WaitForSeconds(delay);
 
-            CharacterPool pool = FindObjectOfType<CharacterPool>();
+            CharacterPool pool = FindFirstObjectByType<CharacterPool>();
             Character characterComponent = GetComponent<Character>();
 
             if (pool != null && characterComponent != null)

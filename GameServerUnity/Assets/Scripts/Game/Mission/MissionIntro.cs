@@ -8,15 +8,16 @@ MissionIntro
    안내를 보여 주고, 모든 플레이어의 카운트다운이 동시에 시작된다.
 3. 클라이언트 기능만 담는다. 네트워크 코드는 고치지 않고, 이미 있는 공개 이벤트만 구독한다.
    - 미션: 네트워크 게임이면 게임 번호로 뽑는다(모든 클라이언트가 같은 번호를 받으므로 같은 미션).
-   - 술래: 지금 서버는 술래 정보를 보내지 않는다. LocalIsTagger 값을 쓰므로,
-     나중에 서버가 술래를 알려 주면 게임 시작 전에 이 값만 넣어 주면 된다.
+   - 술래: 네트워크 게임이면 서버가 STARTED로 알려 준 술래(NetworkGameManager.TaggerId)를 쓴다.
+     오프라인 시험(Test)에서는 LocalIsTagger 값을 쓴다.
+   - 미션을 모두 끝내면 NetworkGameManager.ReportMissionsCleared로 서버에 알린다.
 4. 연출 동안 GameFlow.ControlsLocked로 조작을 막고, "Start!"가 뜨는 순간 풀어 게임을 시작한다.
 5. 다른 곳에서 직접 연출을 틀고 싶으면 Play(술래 여부, 미션 번호들)를 부른다. (Test가 이걸로 시험한다.)
 6. 역할 규칙(도망자 = 술래가 아닌 플레이어):
    - 공격해도 피해가 없다(AI도 다른 플레이어도 죽일 수 없다). CharacterCombat.CanDealDamage를 끈다.
    - 오른쪽 아래 공격 버튼 UI를 숨긴다.
    게임이 끝나면 둘 다 원래대로 돌린다.
-   술래: 자기 공격으로 AI를 죽이면 지금 공격 쿨타임이 aiKillPenalty초(기본 2초) 늘어난다. 플레이어를 죽이면 없음.
+   술래: AI를 잘못 때리면 CharacterCombat이 오인 공격 쿨타임(wrongHitCooldown, 기본 8초)을 건다. aiKillPenalty는 그 위에 더 얹는 값(기본 0).
 7. "Start!" 이후 미션마다 MissionTracker로 진행도를 센다. 하나를 채우면 그 줄이 초록색으로 바뀌며 튀고,
    셋 다 채우면 제목이 MISSION CLEAR로 바뀌며 표시 전체가 튄다.
 */
@@ -39,8 +40,8 @@ namespace GameServer
         [Header("미션 목록 (모든 클라이언트가 같아야 함)")]
         [SerializeField] private MissionDefinition[] missionList =
         {
-            new MissionDefinition("점프 5번 하기", MissionGoal.Jump, 5),
             new MissionDefinition("점프 10번 하기", MissionGoal.Jump, 10),
+            new MissionDefinition("연속 점프 3번 하기", MissionGoal.ConsecutiveJumps, 3),
             new MissionDefinition("10초 동안 달리기", MissionGoal.RunSeconds, 10),
             new MissionDefinition("5초 동안 가만히 있기", MissionGoal.StandStillSeconds, 5),
             new MissionDefinition("20초 동안 걷기만 하기", MissionGoal.WalkOnlySeconds, 20),
@@ -56,8 +57,8 @@ namespace GameServer
         [Header("술래")]
         [Tooltip("이번 게임에서 내가 술래인지. 서버가 술래를 알려 주게 되면 게임 시작 전에 이 값을 넣는다.")]
         [SerializeField] private bool localIsTagger;
-        [Tooltip("술래가 AI를 죽였을 때 다음 공격까지 늘어나는 쿨타임(초)")]
-        [SerializeField, Min(0f)] private float aiKillPenalty = 2f;
+        [Tooltip("술래가 AI를 쓰러뜨렸을 때 오인 공격 쿨타임 위에 더 얹는 시간(초). 0이면 오인 공격 쿨타임만 적용")]
+        [SerializeField, Min(0f)] private float aiKillPenalty = 0f;
 
         private Coroutine running;
         private readonly List<MissionTracker> trackers = new List<MissionTracker>();
@@ -133,8 +134,9 @@ namespace GameServer
         }
 
         // 게임 번호는 모든 클라이언트가 같으므로 미션도 같게 나온다.
+        // 술래는 서버가 정해 NetworkGameManager에 넣어 둔 값을 쓴다(모든 클라이언트가 같다).
         private void HandleNetworkGameStarted(int gameId) =>
-            Play(localIsTagger, PickMissions(new System.Random(gameId)));
+            Play(network.TaggerId != 0 ? network.TaggerId == network.MyId : localIsTagger, PickMissions(new System.Random(gameId)));
 
         private void HandleNetworkGameEnded(int winner, bool iWon) => Cancel();
 
@@ -238,7 +240,7 @@ namespace GameServer
         {
             if (!IsLocalTagger || localCombat == null || localPlayer == null) return;
             if (hit.Attacker != localPlayer.gameObject || victim.CompareTag("Player")) return;
-            localCombat.AddCooldownPenalty(aiKillPenalty);
+            if (aiKillPenalty > 0f) localCombat.AddCooldownPenalty(aiKillPenalty);
         }
 
         private void RestoreRole()
@@ -281,6 +283,8 @@ namespace GameServer
             AllMissionsCleared = true;
             view.ShowAllCleared();
             AllCleared?.Invoke();
+            // 네트워크 게임이면 서버에 미션 완료를 알린다. RUNNER 승리 판정은 서버가 한다.
+            if (network != null && network.InGame) network.ReportMissionsCleared();
         }
 
         private static string ProgressText(float value, MissionDefinition m)

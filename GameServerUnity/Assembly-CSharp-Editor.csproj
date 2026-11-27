@@ -73,6 +73,7 @@
     <Compile Include="Assets\Editor\RoundUIBuilder.cs" />
     <Compile Include="Assets\Editor\RouletteSlotLayout.cs" />
     <Compile Include="Assets\Editor\SimpleButtonSetUIApplier.cs" />
+    <Compile Include="Assets\Editor\LobbyUIBuilder.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

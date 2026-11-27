@@ -67,8 +67,10 @@
     <Compile Include="Assets\Scripts\Game\Effects\RunDust.cs" />
     <Compile Include="Assets\Scripts\Game\GameManager.cs" />
     <Compile Include="Assets\Scripts\Game\PlayerInputSource.cs" />
+    <Compile Include="Assets\Scripts\Network\NetworkAISync.cs" />
     <Compile Include="Assets\Scripts\Game\CursorController.cs" />
     <Compile Include="Assets\Scripts\Game\Mission\MissionIntroView.cs" />
+    <Compile Include="Assets\Scripts\Network\GameStatusView.cs" />
     <Compile Include="Assets\Scripts\Game\PooledEffect.cs" />
     <Compile Include="Assets\Scripts\Game\ScreenEffectManager.cs" />
     <Compile Include="Assets\Scripts\Game\Mission\GameFlow.cs" />
@@ -83,6 +85,7 @@
     <Compile Include="Assets\Scripts\Game\Character\CharacterHealth.cs" />
     <Compile Include="Assets\Scripts\Game\Mission\MissionTracker.cs" />
     <Compile Include="Assets\Scripts\Game\UIView.cs" />
+    <Compile Include="Assets\Scripts\Network\LobbyView.cs" />
     <Compile Include="Assets\Scripts\Network\NetworkGameManager.cs" />
     <Compile Include="Assets\Scripts\Game\UIPresent.cs" />
     <Compile Include="Assets\Scripts\Game\Test.cs" />
