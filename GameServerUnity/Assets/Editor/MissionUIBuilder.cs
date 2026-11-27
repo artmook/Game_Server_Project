@@ -69,12 +69,6 @@ namespace GameServer.EditorTools
             bg.pixelsPerUnitMultiplier = 4f;
             Stretch(bg.rectTransform);
 
-            Image highlight = NewImage("Highlight", roulette, squareRing, new Color(Accent.r, Accent.g, Accent.b, 0.85f));   // 미리보기에선 보이고, 실행하면 숨겼다가 멈출 때 반짝인다.
-            highlight.type = Image.Type.Sliced;
-            highlight.pixelsPerUnitMultiplier = 1f;
-            Stretch(highlight.rectTransform);
-            highlight.rectTransform.offsetMin = new Vector2(-6f, -6f);
-            highlight.rectTransform.offsetMax = new Vector2(6f, 6f);
 
             TMP_Text title = NewText("Title", roulette, 24, font);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0.5f, 1f);
@@ -201,10 +195,6 @@ namespace GameServer.EditorTools
             noticeBg.pixelsPerUnitMultiplier = 4f;
             Stretch(noticeBg.rectTransform);
 
-            Image noticeFrame = NewImage("Frame", notice, squareRing, new Color(Accent.r, Accent.g, Accent.b, 0.45f));
-            noticeFrame.type = Image.Type.Sliced;
-            noticeFrame.pixelsPerUnitMultiplier = 2f;   // 룰렛 테두리보다 얇게
-            Stretch(noticeFrame.rectTransform);
 
             TMP_Text noticeText = NewText("Text", notice, 34, font);
             Stretch(noticeText.rectTransform);
@@ -225,7 +215,6 @@ namespace GameServer.EditorTools
             var so = new SerializedObject(view);
             so.FindProperty("rouletteGroup").objectReferenceValue = rouletteGroup;
             so.FindProperty("rouletteFrame").objectReferenceValue = roulette;
-            so.FindProperty("highlight").objectReferenceValue = highlight;
             so.FindProperty("slotHeight").floatValue = SlotHeight;
 
             SerializedProperty reelsProp = so.FindProperty("reels");
@@ -256,6 +245,7 @@ namespace GameServer.EditorTools
             so.FindProperty("taggerNoticeText").objectReferenceValue = noticeText;
             so.FindProperty("countdownText").objectReferenceValue = countdown;
             so.ApplyModifiedPropertiesWithoutUndo();
+            RouletteSlotLayout.Arrange(view);   // 슬롯머신처럼 가로 3칸으로 배치
 
             var iso = new SerializedObject(intro);
             iso.FindProperty("view").objectReferenceValue = view;

@@ -15,8 +15,11 @@ namespace GameServer
 
         private readonly RaycastHit[] hitBuffer = new RaycastHit[16];
         private float cooldownRemaining;
+        private float currentDuration;   // this cycle's full cooldown (base + penalty), for the UI ring
 
         public float CooldownDuration => cooldown;
+        public float CurrentCooldownDuration => currentDuration > 0f ? currentDuration : cooldown;
+        public bool IsPenalized { get; private set; }   // cooldown was extended by a penalty this cycle
         public float CooldownRemaining => cooldownRemaining;
         public bool IsReady => cooldownRemaining <= 0f;
         // false: attack animation/cooldown only, no hit (MissionIntro turns this off for non-taggers)
@@ -24,20 +27,44 @@ namespace GameServer
 
         public event Action AttackPerformed;
         public event Action<IDamageable> TargetHit;
+        public event Action<float> CooldownPenaltyApplied;   // added seconds
+
+        // Extend the current cooldown (e.g. tagger killed an AI). If idle, starts a cooldown of 'seconds'.
+        public void AddCooldownPenalty(float seconds)
+        {
+            if (seconds <= 0f) return;
+            currentDuration = cooldownRemaining > 0f ? CurrentCooldownDuration + seconds : seconds;
+            cooldownRemaining += seconds;
+            IsPenalized = true;
+            CooldownPenaltyApplied?.Invoke(seconds);
+        }
 
         public void Tick(float deltaTime)
         {
             if (cooldownRemaining > 0f)
+            {
                 cooldownRemaining = Mathf.Max(0f, cooldownRemaining - deltaTime);
+                if (cooldownRemaining <= 0f) IsPenalized = false;
+            }
         }
 
-        public void ResetCooldown() => cooldownRemaining = 0f;
+        public void ResetCooldown()
+        {
+            cooldownRemaining = 0f;
+            IsPenalized = false;
+        }
 
         public bool TryAttack(in CharacterCommand command, CharacterAnimator characterAnimator)
         {
             if (!IsReady) return false;
 
-            cooldownRemaining = cooldown;
+            // Runner (canDealDamage off): attack motion only, so no cooldown at all.
+            if (canDealDamage)
+            {
+                cooldownRemaining = cooldown;
+                currentDuration = cooldown;
+                IsPenalized = false;
+            }
             characterAnimator.PlayAttack();
             AttackPerformed?.Invoke();
 

@@ -62,9 +62,17 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Editor\MissionUIBuilder.cs" />
+    <Compile Include="Assets\Editor\NeumorphicUIApplier.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Editor\ReadmeEditor.cs" />
+    <Compile Include="Assets\Editor\RunDustBuilder.cs" />
     <Compile Include="Assets\Editor\KillFeedPreviewBuilder.cs" />
+    <Compile Include="Assets\Editor\PenaltyNoticeBuilder.cs" />
+    <Compile Include="Assets\Editor\DizzyStarsBuilder.cs" />
+    <Compile Include="Assets\Editor\UnusedUICleaner.cs" />
     <Compile Include="Assets\Editor\HUDBuilder.cs" />
+    <Compile Include="Assets\Editor\RoundUIBuilder.cs" />
+    <Compile Include="Assets\Editor\RouletteSlotLayout.cs" />
+    <Compile Include="Assets\Editor\SimpleButtonSetUIApplier.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

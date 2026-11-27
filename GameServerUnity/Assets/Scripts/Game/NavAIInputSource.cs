@@ -12,8 +12,7 @@ namespace GameServer
         [SerializeField] private float wanderRadius = 15f;
         [SerializeField] private float maxMoveTime = 15f;
 
-        [Header("행동 확률 (공격은 이동 중에 확률적으로 실행)")]
-        [SerializeField, Range(0f, 1f)] private float attackChance = 0.05f;
+        [Header("행동 확률")]   // AI는 공격하지 않는다(공격 모션도 없음). 걷기/달리기만 한다.
         [SerializeField, Range(0f, 1f)] private float runChance = 0.3f;
         [SerializeField] private float jumpChancePerSecond = 0.1f;
 
@@ -32,7 +31,6 @@ namespace GameServer
 
         private float timer;
         private bool running;
-        private bool pendingAttack;
         private bool warnedOffMesh;
 
         private void Awake()
@@ -64,7 +62,6 @@ namespace GameServer
         {
             StopAllCoroutines();
 
-            pendingAttack = false;
             warnedOffMesh = false;
 
             if (EnsureAgent())
@@ -174,10 +171,6 @@ namespace GameServer
             }
             else stuckTimer = 0f;
 
-            ProcessRandomAttack();
-
-            if (pendingAttack) { command.Attack = true; pendingAttack = false; }
-
             return command;
         }
 
@@ -222,18 +215,8 @@ namespace GameServer
             timer = maxMoveTime;
         }
 
-        private void ProcessRandomAttack()
-        {
-            if (pendingAttack) return;
-
-            if (Random.value < attackChance * Time.deltaTime)
-                pendingAttack = true;
-        }
-
         private void HandleDied(HitInfo _)
         {
-            pendingAttack = false;
-
             if (agent != null && agent.enabled)
             {
                 if (agent.isOnNavMesh)

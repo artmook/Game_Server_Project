@@ -16,6 +16,7 @@ MissionIntro
    - 공격해도 피해가 없다(AI도 다른 플레이어도 죽일 수 없다). CharacterCombat.CanDealDamage를 끈다.
    - 오른쪽 아래 공격 버튼 UI를 숨긴다.
    게임이 끝나면 둘 다 원래대로 돌린다.
+   술래: 자기 공격으로 AI를 죽이면 지금 공격 쿨타임이 aiKillPenalty초(기본 2초) 늘어난다. 플레이어를 죽이면 없음.
 7. "Start!" 이후 미션마다 MissionTracker로 진행도를 센다. 하나를 채우면 그 줄이 초록색으로 바뀌며 튀고,
    셋 다 채우면 제목이 MISSION CLEAR로 바뀌며 표시 전체가 튄다.
 */
@@ -55,6 +56,8 @@ namespace GameServer
         [Header("술래")]
         [Tooltip("이번 게임에서 내가 술래인지. 서버가 술래를 알려 주게 되면 게임 시작 전에 이 값을 넣는다.")]
         [SerializeField] private bool localIsTagger;
+        [Tooltip("술래가 AI를 죽였을 때 다음 공격까지 늘어나는 쿨타임(초)")]
+        [SerializeField, Min(0f)] private float aiKillPenalty = 2f;
 
         private Coroutine running;
         private readonly List<MissionTracker> trackers = new List<MissionTracker>();
@@ -70,6 +73,7 @@ namespace GameServer
         public bool IsIntroPlaying => running != null;
         public bool AllMissionsCleared { get; private set; }
 
+        public event Action IntroStarted;                    // 시작 연출이 (다시) 시작되는 순간 → 라운드 초기화
         public event Action GameplayStarted;                 // "Start!" 순간
         public event Action<int> MissionCleared;             // 클리어한 미션 줄 번호(0부터)
         public event Action AllCleared;
@@ -101,6 +105,7 @@ namespace GameServer
         private void OnEnable()
         {
             if (gameManager != null) gameManager.GameStarted += HandleLocalGameStarted;
+            CharacterHealth.AnyDied += HandleAnyDied;
             if (network != null)
             {
                 network.GameStarted += HandleNetworkGameStarted;
@@ -111,6 +116,7 @@ namespace GameServer
         private void OnDisable()
         {
             if (gameManager != null) gameManager.GameStarted -= HandleLocalGameStarted;
+            CharacterHealth.AnyDied -= HandleAnyDied;
             if (network != null)
             {
                 network.GameStarted -= HandleNetworkGameStarted;
@@ -140,11 +146,15 @@ namespace GameServer
 
             Cancel();
             IsLocalTagger = isTagger;
+            // 내가 술래면 술래 = 내 캐릭터. 도망자면 내 캐릭터를 술래에서 뺀다(다른 술래 정보는 그대로 둔다).
+            if (isTagger) RoundRoles.Tagger = localPlayer;
+            else if (RoundRoles.Tagger == localPlayer) RoundRoles.Tagger = null;
             current = new MissionDefinition[picks.Length];
             for (int i = 0; i < picks.Length; i++) current[i] = missionList[picks[i]];
             AllMissionsCleared = false;
             ApplyRole(isTagger);
             running = StartCoroutine(Run(picks));
+            IntroStarted?.Invoke();
         }
 
         private int[] PickMissions(System.Random rng)
@@ -221,6 +231,14 @@ namespace GameServer
         {
             if (localCombat != null) localCombat.CanDealDamage = isTagger && defaultCanDealDamage;
             foreach (UIView hud in huds) if (hud != null) hud.SetSkillVisible(isTagger);
+        }
+
+        // 술래가 자기 공격으로 AI(Player 태그가 아닌 캐릭터)를 죽이면 다음 공격 쿨타임에 패널티를 준다.
+        private void HandleAnyDied(CharacterHealth victim, HitInfo hit)
+        {
+            if (!IsLocalTagger || localCombat == null || localPlayer == null) return;
+            if (hit.Attacker != localPlayer.gameObject || victim.CompareTag("Player")) return;
+            localCombat.AddCooldownPenalty(aiKillPenalty);
         }
 
         private void RestoreRole()

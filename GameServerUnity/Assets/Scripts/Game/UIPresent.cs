@@ -11,6 +11,7 @@ namespace GameServer
         private void OnEnable()
         {
             CharacterHealth.AnyDied += HandleAnyDied;
+            if (player != null && player.TryGetComponent(out CharacterCombat c)) c.CooldownPenaltyApplied += view.ShowPenalty;
             if (survivors == null) return;
             survivors.RemainingPlayersChanged += view.SetRemainingPlayers;
         }
@@ -18,6 +19,7 @@ namespace GameServer
         private void OnDisable()
         {
             CharacterHealth.AnyDied -= HandleAnyDied;
+            if (player != null && player.TryGetComponent(out CharacterCombat c)) c.CooldownPenaltyApplied -= view.ShowPenalty;
             if (survivors == null) return;
             survivors.RemainingPlayersChanged -= view.SetRemainingPlayers;
         }
@@ -45,7 +47,7 @@ namespace GameServer
         {
             if (player == null) return;
             CharacterCombat combat = player.Combat;
-            view.SetCooldown(combat.CooldownRemaining, combat.CooldownDuration);
+            view.SetCooldown(combat.CooldownRemaining, combat.CurrentCooldownDuration, combat.IsPenalized);
         }
     }
 }

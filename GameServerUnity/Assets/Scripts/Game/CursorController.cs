@@ -13,7 +13,8 @@ namespace GameServer
         // (대기실이거나 로비 UI 위를 클릭한 경우 잠그지 않아 버튼을 누를 수 있다.)
         public static Func<bool> CanLock;
 
-        private static bool LockAllowed => CanLock == null || CanLock();
+        // 결과 화면이 떠 있으면(GameFlow.RoundOver) 잠그지 않는다 → 나가기 버튼을 누를 수 있다.
+        private static bool LockAllowed => !GameFlow.RoundOver && (CanLock == null || CanLock());
 
         private void Start()
         {

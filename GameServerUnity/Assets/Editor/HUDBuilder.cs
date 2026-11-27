@@ -87,9 +87,6 @@ namespace GameServer.EditorTools
 
             Image glow = Layer("Glow", skill, circle, new Color(Accent.r, Accent.g, Accent.b, 0.25f), 1.35f);
             Layer("Background", skill, circle, Panel, 1f);
-            Layer("RingBack", skill, ring, new Color(1f, 1f, 1f, 0.15f), 1f);
-            Image ringFill = Layer("RingFill", skill, ring, Accent, 1f);
-            SetRadial(ringFill, 1f);
             Image cdFill = Layer("CooldownFill", skill, circle, new Color(0f, 0f, 0f, 0.55f), 0.86f);
             SetRadial(cdFill, 0f);
 
@@ -112,7 +109,6 @@ namespace GameServer.EditorTools
             var so = new SerializedObject(view);
             so.FindProperty("skillRoot").objectReferenceValue = skill;
             so.FindProperty("glow").objectReferenceValue = glow;
-            so.FindProperty("ringFill").objectReferenceValue = ringFill;
             so.FindProperty("cooldownFill").objectReferenceValue = cdFill;
             so.FindProperty("centerText").objectReferenceValue = center;
             so.FindProperty("remainingText").objectReferenceValue = remaining;

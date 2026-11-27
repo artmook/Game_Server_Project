@@ -45,6 +45,8 @@ namespace GameServer
         [Header("스타일")]
         [SerializeField] private Color accent = new Color(1f, 0.62f, 0.25f);
         [SerializeField] private Color clearColor = new Color(0.36f, 0.86f, 0.42f);
+        [Tooltip("룰렛 미션 글자 기본 색(멈춘 가운데 칸은 accent)")]
+        [SerializeField] private Color slotColor = Color.white;
 
         [Header("룰렛 (화면 중앙)")]
         [SerializeField] private CanvasGroup rouletteGroup;
@@ -52,6 +54,8 @@ namespace GameServer
         [SerializeField] private Reel[] reels;
         [SerializeField] private Image highlight;            // 다 멈췄을 때 반짝이는 테두리
         [SerializeField] private float slotHeight = 64f;
+        [Tooltip("가운데에서 한 칸 멀어질 때 줄어드는 불투명도. 작을수록 위아래 칸이 잘 보인다(슬롯머신처럼).")]
+        [SerializeField] private float neighborFade = 2.2f;
         [SerializeField] private int spinLoops = 4;          // 목표에 닿기 전 미션 목록을 몇 바퀴 도는지
         [SerializeField] private float reelStagger = 0.55f;  // 줄마다 멈추는 시간 차이
 
@@ -64,6 +68,8 @@ namespace GameServer
         [Header("술래 안내 (화면 위쪽)")]
         [SerializeField] private CanvasGroup taggerNoticeGroup;
         [SerializeField] private TMP_Text taggerNoticeText;
+        [Tooltip("술래 안내 동안 화면 전체를 덮는 가리개. 술래가 도망자들이 숨는 모습을 못 보게 한다.")]
+        [SerializeField] private CanvasGroup taggerCover;
 
         [Header("카운트다운 (화면 중앙)")]
         [SerializeField] private TMP_Text countdownText;
@@ -71,7 +77,6 @@ namespace GameServer
         private const float Overshoot = 0.35f;   // 목표 칸을 지나치는 양(칸 단위)
         private const float SettleShare = 0.18f; // 회전 시간 중 되돌아와 멈추는 구간 비율
         private const float FadeTime = 0.35f;
-        private const float NeighborFade = 2.2f;  // 가운데에서 멀어질수록 사라지는 속도 (0.45칸 벗어나면 0)
 
         private readonly System.Random visualRandom = new System.Random();
         private readonly Dictionary<RectTransform, Coroutine> bounces = new Dictionary<RectTransform, Coroutine>();
@@ -100,6 +105,7 @@ namespace GameServer
             SetAlpha(rouletteGroup, 0f);
             SetAlpha(missionLabelGroup, 0f);
             SetAlpha(taggerNoticeGroup, 0f);
+            SetAlpha(taggerCover, 0f);
             if (missionLabelGroup)
             {
                 var rt = (RectTransform)missionLabelGroup.transform;
@@ -132,7 +138,7 @@ namespace GameServer
             {
                 start[r] = visualRandom.Next(n);
                 end[r] = start[r] + (spinLoops + r) * n + Mod(targets[r] - start[r], n);
-                stopAt[r] = Mathf.Max(0.6f, spinTime - (count - 1 - r) * reelStagger);   // 위 줄부터 멈춘다.
+                stopAt[r] = Mathf.Max(0.6f, spinTime - (count - 1 - r) * reelStagger);   // 첫 번째 줄(왼쪽)부터 차례로 멈춘다.
                 lastTick[r] = int.MinValue;
             }
 
@@ -170,11 +176,19 @@ namespace GameServer
                 if (!settled[r]) LayoutReel(reels[r], items, end[r], true);
             if (rouletteFrame) rouletteFrame.localScale = Vector3.one;
 
+            // 다 멈추면 걸린 미션 3개가 같이 두근두근 뛴다(잭팟 느낌).
+            var winners = new TMP_Text[count];
+            for (int r = 0; r < count; r++) winners[r] = CenterSlot(reels[r], end[r]);
             for (float t = 0f; t < holdTime; t += Time.unscaledDeltaTime)
             {
-                if (highlight) SetImageAlpha(highlight, 0.55f + Mathf.Sin(t * 14f) * 0.45f * (1f - t / holdTime));
+                float k = 1f - t / holdTime;
+                if (highlight) SetImageAlpha(highlight, 0.55f + Mathf.Sin(t * 14f) * 0.45f * k);
+                float s = 1f + Mathf.Abs(Mathf.Sin(t * 9f)) * 0.07f * k;
+                foreach (TMP_Text w in winners)
+                    if (w && !bounces.ContainsKey(w.rectTransform)) w.rectTransform.localScale = Vector3.one * s;
                 yield return null;
             }
+            foreach (TMP_Text w in winners) if (w) w.rectTransform.localScale = Vector3.one;
 
             for (float t = 0f; t < FadeTime; t += Time.unscaledDeltaTime)
             {
@@ -212,10 +226,10 @@ namespace GameServer
                 slot.rectTransform.anchoredPosition = new Vector2(0f, offset * slotHeight);
                 if (!settled || j != centerIndex)
                     slot.rectTransform.localScale = Vector3.one * Mathf.Lerp(1f, 0.8f, Mathf.Clamp01(dist));
-                slot.color = settled && j == centerIndex ? accent : Color.white;
+                slot.color = settled && j == centerIndex ? accent : slotColor;
                 // 위아래 칸은 반 칸만 벗어나도 완전히 투명하게 한다.
                 // (줄 상자가 한 칸보다 커서, 흐리게라도 보이면 상자 경계에 반쯤 잘린 글자가 깨져 보인다.)
-                slot.alpha = Mathf.Clamp01(1f - dist * NeighborFade);
+                slot.alpha = Mathf.Clamp01(1f - dist * neighborFade);
             }
         }
 
@@ -333,6 +347,8 @@ namespace GameServer
             }
 
             RectTransform rt = (RectTransform)taggerNoticeGroup.transform;
+            if (taggerCover) taggerCover.gameObject.SetActive(true);   // 미리보기를 꺼 뒀어도 실행 중에는 보인다.
+            taggerNoticeGroup.gameObject.SetActive(true);
             string accentHex = ColorUtility.ToHtmlStringRGB(accent);
             int lastDots = -1;
             for (float t = 0f; t < duration; t += Time.unscaledDeltaTime)
@@ -340,6 +356,7 @@ namespace GameServer
                 float fadeIn = Mathf.Clamp01(t / FadeTime);
                 float fadeOut = Mathf.Clamp01((duration - t) / FadeTime);
                 SetAlpha(taggerNoticeGroup, Mathf.Min(fadeIn, fadeOut));
+                SetAlpha(taggerCover, Mathf.Min(Mathf.Clamp01(t / 0.15f), fadeOut));   // 가리개는 바로 덮고, 끝날 때 같이 걷힌다.
                 rt.localScale = Vector3.one * (1f + Mathf.Sin(t * 3f) * 0.015f);   // 숨 쉬듯 살짝
 
                 int dots = (int)(t * 3f) % 4;   // 0~3개가 차례로 켜진다. 자리는 그대로라 글자가 흔들리지 않는다.
@@ -351,6 +368,7 @@ namespace GameServer
                 yield return null;
             }
             SetAlpha(taggerNoticeGroup, 0f);
+            SetAlpha(taggerCover, 0f);
             rt.localScale = Vector3.one;
         }
 
