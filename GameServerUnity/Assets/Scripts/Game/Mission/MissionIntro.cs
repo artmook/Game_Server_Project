@@ -17,7 +17,7 @@ MissionIntro
    - 공격해도 피해가 없다(AI도 다른 플레이어도 죽일 수 없다). CharacterCombat.CanDealDamage를 끈다.
    - 오른쪽 아래 공격 버튼 UI를 숨긴다.
    게임이 끝나면 둘 다 원래대로 돌린다.
-   술래: AI를 잘못 때리면 CharacterCombat이 오인 공격 쿨타임(wrongHitCooldown, 기본 8초)을 건다. aiKillPenalty는 그 위에 더 얹는 값(기본 0).
+   술래: AI를 잘못 때리면 CharacterCombat이 오인 공격 쿨타임(wrongHitCooldown, 기본 8초)을 건다(패널티는 이것 하나).
 7. "Start!" 이후 미션마다 MissionTracker로 진행도를 센다. 하나를 채우면 그 줄이 초록색으로 바뀌며 튀고,
    셋 다 채우면 제목이 MISSION CLEAR로 바뀌며 표시 전체가 튄다.
 */
@@ -57,8 +57,6 @@ namespace GameServer
         [Header("술래")]
         [Tooltip("이번 게임에서 내가 술래인지. 서버가 술래를 알려 주게 되면 게임 시작 전에 이 값을 넣는다.")]
         [SerializeField] private bool localIsTagger;
-        [Tooltip("술래가 AI를 쓰러뜨렸을 때 오인 공격 쿨타임 위에 더 얹는 시간(초). 0이면 오인 공격 쿨타임만 적용")]
-        [SerializeField, Min(0f)] private float aiKillPenalty = 0f;
 
         private Coroutine running;
         private readonly List<MissionTracker> trackers = new List<MissionTracker>();
@@ -106,7 +104,6 @@ namespace GameServer
         private void OnEnable()
         {
             if (gameManager != null) gameManager.GameStarted += HandleLocalGameStarted;
-            CharacterHealth.AnyDied += HandleAnyDied;
             if (network != null)
             {
                 network.GameStarted += HandleNetworkGameStarted;
@@ -117,7 +114,6 @@ namespace GameServer
         private void OnDisable()
         {
             if (gameManager != null) gameManager.GameStarted -= HandleLocalGameStarted;
-            CharacterHealth.AnyDied -= HandleAnyDied;
             if (network != null)
             {
                 network.GameStarted -= HandleNetworkGameStarted;
@@ -233,14 +229,6 @@ namespace GameServer
         {
             if (localCombat != null) localCombat.CanDealDamage = isTagger && defaultCanDealDamage;
             foreach (UIView hud in huds) if (hud != null) hud.SetSkillVisible(isTagger);
-        }
-
-        // 술래가 자기 공격으로 AI(Player 태그가 아닌 캐릭터)를 죽이면 다음 공격 쿨타임에 패널티를 준다.
-        private void HandleAnyDied(CharacterHealth victim, HitInfo hit)
-        {
-            if (!IsLocalTagger || localCombat == null || localPlayer == null) return;
-            if (hit.Attacker != localPlayer.gameObject || victim.CompareTag("Player")) return;
-            if (aiKillPenalty > 0f) localCombat.AddCooldownPenalty(aiKillPenalty);
         }
 
         private void RestoreRole()

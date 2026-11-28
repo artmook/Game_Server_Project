@@ -29,17 +29,8 @@ namespace GameServer
         public event Action AttackPerformed;
         public event Action<IDamageable> TargetHit;
         public event Action WrongHit;                  // 사람이 아닌 AI를 맞혔을 때
-        public event Action<float> CooldownPenaltyApplied;   // 패널티로 걸린 쿨타임(초). 공격 버튼 위 알림용
+        public event Action<float> CooldownPenaltyApplied;   // 오인 공격 패널티로 걸린 쿨타임(초). 공격 버튼 위 알림용
 
-        // 지금 쿨타임을 늘린다. 쉬는 중이면 seconds짜리 쿨타임을 새로 건다.
-        public void AddCooldownPenalty(float seconds)
-        {
-            if (seconds <= 0f) return;
-            currentDuration = cooldownRemaining > 0f ? CurrentCooldownDuration + seconds : seconds;
-            cooldownRemaining += seconds;
-            IsPenalized = true;
-            CooldownPenaltyApplied?.Invoke(seconds);
-        }
 
         public void Tick(float deltaTime)
         {

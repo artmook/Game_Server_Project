@@ -842,6 +842,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.CharacterCombat
   cooldown: 2
+  wrongHitCooldown: 8
   attackRange: 3
   maxAimDistance: 50
   hittableLayers:
@@ -863,12 +864,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameServer.NavAIInputSource
   wanderRadius: 50
   maxMoveTime: 10
-  attackChance: 0.05
-  runChance: 0.108
+  runChance: 0.3
   jumpChancePerSecond: 0.1
+  idleChance: 0.5
+  idleTime: {x: 1, y: 4}
   directionSmooth: 1
   stuckTime: 2
   stuckSpeed: 0.5
+  stunDuration: 8
 --- !u!195 &6020784909632124124
 NavMeshAgent:
   m_ObjectHideFlags: 0

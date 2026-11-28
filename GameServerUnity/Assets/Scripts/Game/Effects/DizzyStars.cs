@@ -3,9 +3,9 @@
 
 DizzyStars (기절 별)
 
-1. 도망자 플레이어가 죽으면 머리 위에서 노란 별들이 빙글빙글 돈다.
+1. 캐릭터가 쓰러지면(도망자 플레이어가 잡히거나, AI가 맞아 기절하면) 머리 위에서 노란 별들이 빙글빙글 돈다.
 2. 죽은 캐릭터의 자식으로 붙기 때문에, 캐릭터가 사라지면(꺼지거나 지워지면) 같이 사라진다.
-   같은 캐릭터가 다시 살아나면(리스폰) 스스로 지운다.
+   같은 캐릭터가 다시 살아나면(리스폰, AI 기절 회복) 스스로 지운다.
 3. 별 모양과 개수는 프리팹(Assets/Resources/DizzyStars.prefab)에 있다. Tools > 기절 별 이펙트 만들기로 만든다.
    프리팹을 열면 편집 화면에서도 별이 도는 모습을 볼 수 있다.
 4. 아무 데도 붙일 필요 없다. 게임이 시작되면 DizzyStarsSpawner가 캐릭터 죽음을 듣고 알아서 붙인다.
@@ -89,7 +89,7 @@ namespace GameServer
 
         private static void HandleDied(CharacterHealth victim, HitInfo hit)
         {
-            if (victim == null || !victim.CompareTag("Player")) return;   // AI는 제외, 도망자 플레이어만
+            if (victim == null) return;   // 도망자 플레이어와 AI 모두
 
             if (prefab == null) prefab = Resources.Load<GameObject>(PrefabPath);
             if (prefab == null)
